@@ -1,11 +1,12 @@
 import os
 from torch.utils.data import Dataset
-import cv2
+#import cv2
+from PIL import Image
 import pandas as pd
 import json
 
 class OcelotDatasetLoader(Dataset):
-    def __init__(self, paths: 'list'=[], dataToLoad = None, Transforms = None):
+    def __init__(self, paths: 'list'=[], dataToLoad = None, transforms = None):
         '''
         Args:
             paths: a list of paths to all 5 corresponding data subfolders in order of \
@@ -25,7 +26,7 @@ class OcelotDatasetLoader(Dataset):
         self.tissANNFileNames = os.listdir(paths[3])
 
         self.dataToReturn = dataToLoad
-        self.transforms = Transforms
+        self.transforms = transforms
 
         self.metadataAbsPath = paths[4]
         with open(self.metadataAbsPath) as jsonFile:
@@ -48,17 +49,20 @@ class OcelotDatasetLoader(Dataset):
             if specified by dataToReturn = Cell/cell or Tissue/tissue, the corresponding image and annotation arrays, else everything.
         '''
         cellImageAbsPath = os.path.join(self.cellIMGPaths, self.cellIMGFileNames[idx])
-        tissIMGAbsPath = os.path.join(self.tissIMGPaths, self.tissIMGFileNames[idx])
+        tissImageAbsPath = os.path.join(self.tissIMGPaths, self.tissIMGFileNames[idx])
         cellAnnAbsPath = os.path.join(self.cellANNPaths, self.cellANNFileNames[idx])
         tissAnnAbsPath = os.path.join(self.tissANNPaths, self.tissANNFileNames[idx])
         
-        cellImage = cv2.imread(cellImageAbsPath)
-        cellImage = cv2.cvtColor(cellImage, cv2.COLOR_BGR2RGB) 
+        #cellImage = cv2.imread(cellImageAbsPath)
+        cellImage = Image.open(cellImageAbsPath)
+        #cellImage = cv2.cvtColor(cellImage, cv2.COLOR_BGR2RGB) 
 
-        tissIMG = cv2.imread(tissIMGAbsPath)
-        tissIMG = cv2.cvtColor(tissIMG, cv2.COLOR_BGR2RGB) 
+        #tissImage = cv2.imread(tissIMGAbsPath)
+        tissImage = Image.open(tissImageAbsPath)
+        #tissImage = cv2.cvtColor(tissIMG, cv2.COLOR_BGR2RGB) 
 
-        tissMask = cv2.imread(tissAnnAbsPath, 0)
+        #tissMask = cv2.imread(tissAnnAbsPath, 0)
+        tissMask = Image.open(tissAnnAbsPath)
         cellAnn = pd.read_csv(cellAnnAbsPath, delimiter=',').to_numpy()
 
         x_start = self.jsonObject['sample_pairs'][os.path.splitext(self.cellIMGFileNames[idx])[0]]['cell']['x_start']
@@ -72,13 +76,14 @@ class OcelotDatasetLoader(Dataset):
 
         if self.transforms:
             cellImage = self.transforms(cellImage)
-            tissIMG = self.transforms(cellImage)
+            cellAnn = self.transforms(cellAnn) #keep??
+            tissImage = self.transforms(tissImage)
             tissMask = self.transforms(tissMask)
 
         if self.dataToReturn == 'cell' or self.dataToReturn == 'Cell':
             return (cellImage, cellAnn)
         
         elif self.dataToReturn == 'tissue' or self.dataToReturn == 'Tissue':
-            return (tissIMG, tissMask)
+            return (tissImage, tissMask)
 
-        return (cellImage, cellAnn, tissIMG, tissMask, x_coord, y_coord)
+        return (cellImage, cellAnn, tissImage, tissMask, x_coord, y_coord)
