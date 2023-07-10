@@ -5,6 +5,6 @@ Ocelot 2023 Grand Challenge Project
 - notebooks: jupyter notebooks
 - references: relevant literature and graphs
 - reports: written summaries and reports (LaTeX)
-- src: source code containing relevant scripts/classes
+- util: source code containing relevant scripts/classes
 
 FOR NOW WORK IN NOTEBOOKS
