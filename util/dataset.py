@@ -86,8 +86,4 @@ class OcelotDatasetLoader(Dataset):
         elif self.dataToReturn == 'tissue' or self.dataToReturn == 'Tissue':
             return (tissImage, tissMask)
 
-<<<<<<< HEAD
         return (cellImage, cellAnn, tissImage, tissMask, x_coord, y_coord)
-=======
-        return (cellImage, cellAnn, tissImage, tissMask, x_coord, y_coord)
->>>>>>> 41c24aaebad491cdbd86cc75884a3519fc00f5c2
