@@ -1,9 +1,10 @@
 import os
 from torch.utils.data import Dataset
-#import cv2
 from PIL import Image
 import pandas as pd
 import json
+
+import numpy as np
 
 class OcelotDatasetLoader(Dataset):
     def __init__(self, paths: 'list'=[], dataToLoad = None, transforms = None):
@@ -41,7 +42,7 @@ class OcelotDatasetLoader(Dataset):
         return len(os.listdir(self.cellIMGPaths))
     
     def __getitem__(self, idx):
-        '''
+        '''dataset[0]
         Args:
             idx: index of sample of interest. Ensure ORDERED correspondence of data between subfolders. 
 
@@ -53,17 +54,13 @@ class OcelotDatasetLoader(Dataset):
         cellAnnAbsPath = os.path.join(self.cellANNPaths, self.cellANNFileNames[idx])
         tissAnnAbsPath = os.path.join(self.tissANNPaths, self.tissANNFileNames[idx])
         
-        #cellImage = cv2.imread(cellImageAbsPath)
         cellImage = Image.open(cellImageAbsPath)
-        #cellImage = cv2.cvtColor(cellImage, cv2.COLOR_BGR2RGB) 
-
-        #tissImage = cv2.imread(tissIMGAbsPath)
         tissImage = Image.open(tissImageAbsPath)
-        #tissImage = cv2.cvtColor(tissIMG, cv2.COLOR_BGR2RGB) 
-
-        #tissMask = cv2.imread(tissAnnAbsPath, 0)
         tissMask = Image.open(tissAnnAbsPath)
-        cellAnn = pd.read_csv(cellAnnAbsPath, delimiter=',').to_numpy()
+        try:
+            cellAnn = pd.read_csv(cellAnnAbsPath, delimiter=',').to_numpy()
+        except:
+            cellAnn = np.empty((0,0,0))
 
         x_start = self.jsonObject['sample_pairs'][os.path.splitext(self.cellIMGFileNames[idx])[0]]['cell']['x_start']
         x_end = self.jsonObject['sample_pairs'][os.path.splitext(self.cellIMGFileNames[idx])[0]]['cell']['x_end']
@@ -76,18 +73,14 @@ class OcelotDatasetLoader(Dataset):
 
         if self.transforms:
             cellImage = self.transforms(cellImage)
-            cellAnn = self.transforms(cellAnn) #keep??
             tissImage = self.transforms(tissImage)
             tissMask = self.transforms(tissMask)
 
         if self.dataToReturn == 'cell' or self.dataToReturn == 'Cell':
-            return (cellImage, cellAnn)
+            return cellImage, cellAnn
         
         elif self.dataToReturn == 'tissue' or self.dataToReturn == 'Tissue':
-            return (tissImage, tissMask)
+            return tissImage, tissMask
 
-<<<<<<< HEAD
-        return (cellImage, cellAnn, tissImage, tissMask, x_coord, y_coord)
-=======
-        return (cellImage, cellAnn, tissImage, tissMask, x_coord, y_coord)
->>>>>>> 41c24aaebad491cdbd86cc75884a3519fc00f5c2
+        return cellImage, cellAnn, tissImage, tissMask, x_coord, y_coord
+    
