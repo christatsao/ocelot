@@ -3,8 +3,8 @@ from torch.utils.data import Dataset
 from PIL import Image
 import pandas as pd
 import json
-
 import numpy as np
+import torch
 
 class OcelotDatasetLoader(Dataset):
     def __init__(self, paths: 'list'=[], dataToLoad = None, transforms = None):
@@ -68,8 +68,8 @@ class OcelotDatasetLoader(Dataset):
         y_start = self.jsonObject['sample_pairs'][os.path.splitext(self.cellIMGFileNames[idx])[0]]['cell']['y_start']
         y_end = self.jsonObject['sample_pairs'][os.path.splitext(self.cellIMGFileNames[idx])[0]]['cell']['y_end']
 
-        x_coord = (x_start, x_end)
-        y_coord = (y_start, y_end)
+        x_coord = [x_start, x_end]
+        y_coord = [y_start, y_end]
 
         if self.transforms:
             cellImage = self.transforms(cellImage)
@@ -83,4 +83,20 @@ class OcelotDatasetLoader(Dataset):
             return tissImage, tissMask
 
         return cellImage, cellAnn, tissImage, tissMask, x_coord, y_coord
-    
+
+def seg_mask_from_dataloader(model, dataloader, dtype=None, device=None):
+    if device.type == "cuda":
+        model.cuda()
+    with torch.no_grad():
+            for image, mask in dataloader:
+                image = image.to(dtype=dtype if dtype else torch.float32,
+                                device = device if device else None, 
+                                memory_format=torch.channels_last)
+                output = model(image)
+                predicted_masks = torch.argmax(output, dim=1)
+                return predicted_masks
+
+def torch_to_image(single_image_tensor):
+    single_image_array = single_image_tensor.detach().cpu().numpy()
+    out_img = Image.fromarray((single_image_array * 255).astype(np.uint8))
+    return out_img    
