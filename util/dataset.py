@@ -87,11 +87,11 @@ class OcelotDatasetLoader(Dataset):
 def seg_mask_from_dataloader(model, dataloader, dtype=None, device=None):
     if device.type == "cuda":
         model.cuda()
+
     with torch.no_grad():
             for image, mask in dataloader:
                 image = image.to(dtype=dtype if dtype else torch.float32,
-                                device = device if device else None, 
-                                memory_format=torch.channels_last)
+                                device = device if device else 'cpu') 
                 output = model(image)
                 predicted_masks = torch.argmax(output, dim=1)
                 return predicted_masks
