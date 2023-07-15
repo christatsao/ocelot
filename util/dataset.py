@@ -4,6 +4,7 @@ from PIL import Image
 import pandas as pd
 import json
 import numpy as np
+from torchvision.transforms import ToPILImage
 import torch
 
 class OcelotDatasetLoader(Dataset):
@@ -84,19 +85,17 @@ class OcelotDatasetLoader(Dataset):
 
         return cellImage, cellAnn, tissImage, tissMask, x_coord, y_coord
 
-def seg_mask_from_dataloader(model, dataloader, dtype=None, device=None):
-    if device.type == "cuda":
-        model.cuda()
+def predict_segmentation_img(model, tensor):
+    model.eval()
+    
+    with torch.no_grad():        
+        # Perform inference
+        predicted_mask = model(tensor.unsqueeze(0))
+        predicted_mask = torch.argmax(predicted_mask, dim=1)
+        predicted_mask = predicted_mask.squeeze(0).cpu().numpy()
+        print(predicted_mask.shape)
+                        
+    # Convert the predicted mask to a PIL image
+    predicted_mask = Image.fromarray((predicted_mask * 255).astype(np.uint8))
 
-    with torch.no_grad():
-            for image, mask in dataloader:
-                image = image.to(dtype=dtype if dtype else torch.float32,
-                                device = device if device else 'cpu') 
-                output = model(image)
-                predicted_masks = torch.argmax(output, dim=1)
-                return predicted_masks
-
-def torch_to_image(single_image_tensor):
-    single_image_array = single_image_tensor.detach().cpu().numpy()
-    out_img = Image.fromarray((single_image_array * 255).astype(np.uint8))
-    return out_img    
+    return predicted_mask
