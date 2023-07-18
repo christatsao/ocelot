@@ -8,7 +8,7 @@ from torchvision.transforms import ToPILImage
 import torch
 
 class OcelotDatasetLoader(Dataset):
-    def __init__(self, paths: 'list'=[], dataToLoad = None, transforms = None):
+    def __init__(self, paths: 'list'=[], dataToLoad = None, image_transforms = None, mask_transforms = None):
         '''
         Args:
             paths: a list of paths to all 5 corresponding data subfolders in order of \
@@ -28,7 +28,8 @@ class OcelotDatasetLoader(Dataset):
         self.tissANNFileNames = os.listdir(paths[3])
 
         self.dataToReturn = dataToLoad
-        self.transforms = transforms
+        self.image_transforms = image_transforms
+        self.mask_transforms = mask_transforms
 
         self.metadataAbsPath = paths[4]
         with open(self.metadataAbsPath) as jsonFile:
@@ -72,10 +73,11 @@ class OcelotDatasetLoader(Dataset):
         x_coord = [x_start, x_end]
         y_coord = [y_start, y_end]
 
-        if self.transforms:
-            cellImage = self.transforms(cellImage)
-            tissImage = self.transforms(tissImage)
-            tissMask = self.transforms(tissMask)
+        if self.image_transforms:
+            cellImage = self.image_transforms(cellImage)
+            tissImage = self.image_transforms(tissImage)
+        if self.mask_transforms:
+            tissMask = self.mask_transforms(tissMask)
 
         if self.dataToReturn == 'cell' or self.dataToReturn == 'Cell':
             return cellImage, cellAnn
@@ -84,18 +86,37 @@ class OcelotDatasetLoader(Dataset):
             return tissImage, tissMask
 
         return cellImage, cellAnn, tissImage, tissMask, x_coord, y_coord
+    
+class PixelThreshold(object):
+  def __init__(self, upper_thresh=None, lower_thresh=None):
+    '''Class to apply thresholding to a given tensor'''
+    self.lower_thresh = lower_thresh / 255. if lower_thresh else None
+    self.upper_thresh = upper_thresh /255. if upper_thresh else None
 
+  def __call__(self, tensor):
+    if self.lower_thresh == None and not self.upper_thresh == None:
+      return (tensor < self.upper_thresh).to(tensor.dtype)
+    
+    elif not self.lower_thresh == None and self.upper_thresh == None:
+      return (tensor > self.lower_thresh).to(tensor.dtype)
+
+    else:
+      return ((tensor > self.lower_thresh) & (tensor < self.upper_thresh)).to(tensor.dtype)
+
+
+###DEPERECATED______________________________________________________________________________________
 def predict_segmentation_img(model, tensor):
     model.eval()
     
     with torch.no_grad():        
         # Perform inference
         predicted_mask = model(tensor.unsqueeze(0))
-        predicted_mask = torch.argmax(predicted_mask, dim=1)
-        predicted_mask = predicted_mask.squeeze(0).cpu().numpy()
+        predicted_mask = torch.sigmoid(predicted_mask) #TODO: check correctness softmax??
+        #predicted_mask = torch.argmax(predicted_mask, dim=1)
+        predicted_mask = predicted_mask.squeeze().cpu().numpy() #TODO: SQUEEZE 0 or SQUEEZE?
         print(predicted_mask.shape)
                         
     # Convert the predicted mask to a PIL image
-    predicted_mask = Image.fromarray((predicted_mask * 255).astype(np.uint8))
+    predicted_mask = Image.fromarray(((predicted_mask > 0.5) * 255).astype(np.uint8)) #TODO: TEST TO SEE IF CORRECT
 
     return predicted_mask
