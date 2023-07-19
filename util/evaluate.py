@@ -30,5 +30,5 @@ def evaluate(model, dataloader, device, amp):
     
     model.train()
     
-    avg_metric = metric_sum/n_samples
+    avg_metric = metric_sum/(n_samples/dataloader.batch_size)
     return avg_metric
