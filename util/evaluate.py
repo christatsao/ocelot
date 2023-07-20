@@ -8,6 +8,7 @@ def evaluate(model, dataloader, device, amp):
     model.eval()
     metric_sum = 0
     n_samples = len(dataloader.dataset)
+    n_batches = n_samples / dataloader.batch_size
     loss_metric = DiceCELoss(sigmoid=True)
 
     #No need to waste memory resources for gradients if we are not using backpropagation
@@ -30,5 +31,5 @@ def evaluate(model, dataloader, device, amp):
     
     model.train()
     
-    avg_metric = metric_sum/(n_samples/dataloader.batch_size)
+    avg_metric = metric_sum/n_batches
     return avg_metric
