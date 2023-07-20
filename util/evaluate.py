@@ -3,7 +3,7 @@ from tqdm import tqdm
 from monai.losses import DiceCELoss
 
 @torch.inference_mode()
-def evaluate(model, dataloader, device, amp):
+def evaluate(args,model, dataloader, device, amp):
     #Set to evaluation mode
     model.eval()
     metric_sum = 0
