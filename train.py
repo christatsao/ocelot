@@ -90,7 +90,7 @@ def tiss_training_loop(args,
         model.to(device)
         val_losses = []
         train_losses = []
-        best_val = 0
+        best_val = 100000
 
         #Begin training
         for epoch in range(args.epochs):
@@ -136,10 +136,14 @@ def tiss_training_loop(args,
                 train_losses.append(train_loss)
 
                 #Move on to validation loss
-                val_loss = evaluate(args,model, val_loader, device, amp=False) #TODO: UPDATE EVALUATION METHOD FOR MULTICLASS
+                if(epoch%3==0):
+                    val_loss = evaluate(args,experiment,model, val_loader, device, epoch,amp=False) #TODO: UPDATE EVALUATION METHOD FOR MULTICLASS
+
                 
-                print(f"Val loss:   {val_loss}")
-                print(f"Train loss: {train_loss}")
+                #print(f"Val loss:   {val_loss}")
+                #print(f"Train loss: {train_loss}")
+                experiment.log_metric('train_loss',train_loss,step=epoch)
+                experiment.log_metric('val_loss',val_loss,step=epoch)
                 
                 scheduler.step()
 
@@ -149,11 +153,12 @@ def tiss_training_loop(args,
                 if val_loss < best_val:
                     best_val = val_loss
                     best_trained_model=copy.deepcopy(model.state_dict())
-                    torch.save(best_trained_model, filepath) if filepath else None
+                    torch.save(best_trained_model, os.path.join(filepath,'model.pt'))
         return train_losses, val_losses
 
 
 def main(args):
+    scratchDir ='/scratch/general/nfs1/u6052852/REU_Results' 
     my_device = torch.device(device = 'cuda' if torch.cuda.is_available() else 'cpu')
     pin_memory = True if my_device == 'cuda' else False
     d_type_f32 = torch.float32
@@ -164,6 +169,11 @@ def main(args):
     #nepochs = 10
     #val_percent=0.1
     #train_percent = 1 - val_percent
+    scratchDir = os.path.join(scratchDir,'lr'+str(args.learningRate),'wd'+str(args.weightDecay))
+    if(os.path.exists(scratchDir)==False):
+        os.makedirs(scratchDir)
+
+
     image_transforms = transf.Compose([transf.Resize((128,128)), transf.ToTensor()])
     mask_transforms = transf.Compose([transf.Resize((128,128)), transf.ToTensor(), PixelThreshold(lower_thresh=1, upper_thresh=255)])
 
@@ -176,7 +186,7 @@ def main(args):
                             my_device,
                             experiment,
                             mask_transforms=mask_transforms,
-                            image_transforms=image_transforms)
+                            image_transforms=image_transforms,filepath=scratchDir)
 
 if __name__ == "__main__":
 
