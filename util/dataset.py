@@ -6,6 +6,9 @@ import json
 import numpy as np
 from torchvision.transforms import ToPILImage
 import torch
+from albumentations.pytorch import ToTensorV2
+from albumentations.augmentations.transforms import Normalize, PixelDropout
+import cv2
 
 class OcelotDatasetLoader(Dataset):
     def __init__(self, paths: 'list'=[], dataToLoad = None, image_transforms = None, mask_transforms = None):
@@ -86,12 +89,82 @@ class OcelotDatasetLoader(Dataset):
             return tissImage, tissMask
 
         return cellImage, cellAnn, tissImage, tissMask, x_coord, y_coord
+
+class OcelotDatasetLoader2(Dataset):
+    def __init__(self, fileList, datasetroot, transforms=None, multiclass=False):
+        ''''''
+        self.fileList = fileList
+        self.transforms = transforms
+        self.root = datasetroot
+        self.multiclass = multiclass
+
+    def __len__(self):
+        '''
+        Returns:
+            Length of dataset based on number of cell images. Ensure ORDERED correspondence of data between subfolders. 
+        '''
+        return len(self.fileList)
     
-class PixelThreshold(object):
+    def __getitem__(self, idx):
+        '''
+        Args:
+            idx: index of sample of interest. Ensure ORDERED correspondence of data between subfolders. 
+        Returns:
+        '''
+        #cellImageAbsPath = os.path.join(self.cellIMGPaths, self.cellIMGFileNames[idx])
+        tissImageAbsPath = os.path.join(self.root,'images','train','tissue')
+        tissAnnAbsPath = tissImageAbsPath.replace('images','annotations')
+        #cellImageAbsPath = tissImageAbsPath.replace('tissue','cell')
+
+        image_number = self.fileList[idx]
+        #cellImage = Image.open(cellImageAbsPath)
+        tissImage = cv2.imread(os.path.join(tissImageAbsPath,image_number))
+        tissMask = cv2.imread(os.path.join(tissAnnAbsPath,image_number.replace('.jpg','.png')), 0)
+        
+        #try:
+        #    cellAnn = pd.read_csv(cellAnnAbsPath, delimiter=',').to_numpy()
+        #except:
+        #    cellAnn = np.empty((0,0,0))
+
+        #x_start = self.jsonObject['sample_pairs'][os.path.splitext(self.cellIMGFileNames[idx])[0]]['cell']['x_start']
+        #x_end = self.jsonObject['sample_pairs'][os.path.splitext(self.cellIMGFileNames[idx])[0]]['cell']['x_end']
+
+        #y_start = self.jsonObject['sample_pairs'][os.path.splitext(self.cellIMGFileNames[idx])[0]]['cell']['y_start']
+        #y_end = self.jsonObject['sample_pairs'][os.path.splitext(self.cellIMGFileNames[idx])[0]]['cell']['y_end']
+
+        #x_coord = [x_start, x_end]
+        #y_coord = [y_start, y_end]
+
+        if self.transforms is not None:
+            #cellImage = self.image_transforms(cellImage)
+            tsample = self.transforms(image=tissImage, mask=tissMask)
+            tissImage = tsample['image']
+            tissMask = tsample['mask']
+
+        #If any of the transforms seeks to convert the data to a tensor, our given mask should be thresholded such that we only have integers [0,1]
+        #This is necessary for dice score calculations
+        if any(transform.__class__ == ToTensorV2 for transform in self.transforms) and self.multiclass == False:
+            threshold = BinaryPixelThreshold(lower_thresh=1, upper_thresh=255) #TODO: NOT IDEAL BUT WORKS FOR NOW
+            tissMask = threshold(tissMask)
+        elif any(transform.__class__ == ToTensorV2 for transform in self.transforms) and self.multiclass == True:
+            tissMask = torch.where(tissMask == 255, 2, tissMask) #TODO: CHECK
+            tissMask = torch.where(tissMask == 1, 0, tissMask)
+            tissMask = torch.where(tissMask == 2, 1, tissMask)                
+
+        #if self.dataToReturn == 'cell' or self.dataToReturn == 'Cell':
+        #    return cellImage, cellAnn
+        #
+        #elif self.dataToReturn == 'tissue' or self.dataToReturn == 'Tissue':
+        #    return tissImage, tissMask
+
+        #return cellImage, cellAnn, tissImage, tissMask, x_coord, y_coord
+        return tissImage, tissMask
+
+class BinaryPixelThreshold(object):
   def __init__(self, upper_thresh=None, lower_thresh=None):
     '''Class to apply thresholding to a given tensor'''
-    self.lower_thresh = lower_thresh / 255. if lower_thresh else None
-    self.upper_thresh = upper_thresh /255. if upper_thresh else None
+    self.lower_thresh = lower_thresh if lower_thresh else None
+    self.upper_thresh = upper_thresh if upper_thresh else None
 
   def __call__(self, tensor):
     if self.lower_thresh == None and not self.upper_thresh == None:
@@ -102,21 +175,3 @@ class PixelThreshold(object):
 
     else:
       return ((tensor > self.lower_thresh) & (tensor < self.upper_thresh)).to(tensor.dtype)
-
-
-###DEPERECATED______________________________________________________________________________________
-def predict_segmentation_img(model, tensor):
-    model.eval()
-    
-    with torch.no_grad():        
-        # Perform inference
-        predicted_mask = model(tensor.unsqueeze(0))
-        predicted_mask = torch.sigmoid(predicted_mask) #TODO: check correctness softmax??
-        #predicted_mask = torch.argmax(predicted_mask, dim=1)
-        predicted_mask = predicted_mask.squeeze().cpu().numpy() #TODO: SQUEEZE 0 or SQUEEZE?
-        print(predicted_mask.shape)
-                        
-    # Convert the predicted mask to a PIL image
-    predicted_mask = Image.fromarray(((predicted_mask > 0.5) * 255).astype(np.uint8)) #TODO: TEST TO SEE IF CORRECT
-
-    return predicted_mask

@@ -8,7 +8,7 @@ sys.path.append(PROJECT_ROOT)
 
 #Local packages loaded from src specifying useful constants, and our custom loader
 from util.constants import DATA_PATHS
-from util.dataset import OcelotDatasetLoader, PixelThreshold
+from util.dataset import OcelotDatasetLoader, OcelotDatasetLoader2, BinaryPixelThreshold
 from util.unet import Unet
 from util.evaluate import evaluate
 import argparse
@@ -25,53 +25,27 @@ from tqdm import tqdm
 import matplotlib.pyplot as plt
 from monai.losses import DiceCELoss, DiceLoss, MaskedDiceLoss
 import copy
+import albumentations as A
+from albumentations.pytorch import ToTensorV2
+import cv2
+import pandas as pd
+from sklearn.model_selection import train_test_split
+
 experiment = Experiment(
     api_key="Fl7YrvyVQDhLRYuyUfdHS3oE8",
     project_name="reu-project",
     workspace="joeshmoe03",
 )
 
-
-
 def tiss_training_loop(args,
+        train_loader,
+        val_loader,
         model,
         device,
         experiment,
-        #epochs,
-        #batch_size:         int = 128,
-        #learning_rate:      float = 0.01,
-        #val_percent:        float = 0.2,
-        #amp:                bool = False,
-        #weight_decay:       float = 1e-3,
-        #momentum:           float = 0.98,
-        #gradient_clipping:  float = 1.0,
-        image_transforms = transf.Compose([transf.Resize((128,128)), transf.ToTensor()]),
-        mask_transforms = transf.Compose([transf.Resize((128,128)), transf.ToTensor(), PixelThreshold(lower_thresh=1, upper_thresh=255)]),
+        train,
         filepath = None
-    ):
-        #Loading our data, performing necessary splits (update with test set in future), and send to loader
-        print("Loading Ocelot dataset...")
-
-        training_data = OcelotDatasetLoader(paths=DATA_PATHS,
-                                            dataToLoad='Tissue',
-                                            image_transforms=image_transforms,
-                                            mask_transforms=mask_transforms)
-        train_percent = 1 - args.val_percent
-        train_N, val_N = [int(train_percent*len(training_data)), 
-                        int(args.val_percent*len(training_data))]
-        train_split, val_split = torch.utils.data.random_split(training_data, 
-                                                            [train_percent, args.val_percent])
-        train_loader = DataLoader(train_split, 
-                                batch_size=args.batchSize, 
-                                num_workers=4)
-        val_loader = DataLoader(val_split, 
-                                batch_size=args.batchSize, 
-                                num_workers=4)
-        N_batches_train = train_N/train_loader.batch_size
-        N_batches_val = val_N/val_loader.batch_size
-
-        print(f"Found {len(training_data)} data samples.")   
-            
+    ):                
         #Initialize optimizer, loss, learning rate, and loss scaling
         optimizer = torch.optim.SGD(model.parameters(),
                                     lr=args.learningRate,
@@ -79,8 +53,8 @@ def tiss_training_loop(args,
                                     weight_decay=args.weightDecay,
                                     maximize=False)
         
-        criterion = DiceCELoss(sigmoid=True) #TODO: IMPLEMENT BEHAVIOR FOR NON BINARY SEGMENTATION (ensure model.n_classes=1 for now)
-
+        #criterion = DiceCELoss(sigmoid=True)
+        criterion = DiceCELoss(sigmoid=True) if model.n_channels == 1 else DiceLoss(to_onehot_y=True)
 
         #we use max here as our purpose is to maximize our measured metric (DICE score of 1 is better: more mask similarity)
         scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=5)
@@ -90,20 +64,22 @@ def tiss_training_loop(args,
         model.to(device)
         val_losses = []
         train_losses = []
-        best_val = 100000
+        best_val = 2.00
+        N_batches_train = len(train)/args.batchSize
 
         #Begin training
         for epoch in range(args.epochs):
             epoch_loss = 0
             model.train()
 
-            with tqdm(total=train_N, desc=f'Epoch {epoch+1}/{args.epochs}') as progress_bar:
+            with tqdm(total=len(train), desc=f'Epoch {epoch+1}/{args.epochs}') as progress_bar:
                             
                 for batch in train_loader:
                     images, true_masks = batch[0], batch[1]
                     assert images.shape[1] == model.n_channels, f"Expected {model.n_channels} channels from image but received {images.shape[1]} channels instead."
                     images = images.to(device=device, dtype=torch.float32, memory_format=torch.channels_last if args.amp==True else torch.preserve_format)
                     true_masks = true_masks.to(device=device, dtype=torch.float32)
+                    true_masks = true_masks.unsqueeze(1)
 
                     with torch.autocast(device.type if device.type == 'cuda' else 'cpu', enabled=args.amp):
                         infer_masks = model(images)
@@ -111,12 +87,10 @@ def tiss_training_loop(args,
                         if model.n_classes == 1:
                             loss = criterion(infer_masks, true_masks.float())
                             epoch_loss += loss.detach().cpu().item()
-                            #loss += 0.5 * dice_score #TODO: loss += dice score?
                         
-                        else:
-                            #TODO: EVALUATE CRITERION FOR MULTICLASS SEGMENTATION
-                            loss = ...
-                            return NotImplementedError
+                        elif model.n_classes > 1:
+                            loss = criterion(infer_masks, true_masks.float())
+                            epoch_loss += loss.detach().cpu().item()
 
                     optimizer.zero_grad()
 
@@ -137,67 +111,118 @@ def tiss_training_loop(args,
 
                 #Move on to validation loss
                 if(epoch%3==0):
-                    val_loss = evaluate(args,experiment,model, val_loader, device, epoch,amp=False) #TODO: UPDATE EVALUATION METHOD FOR MULTICLASS
+                    val_loss = evaluate(args, 
+                                        model, 
+                                        val_loader, 
+                                        device, 
+                                        amp=args.amp) #TODO: UPDATE EVALUATION METHOD FOR MULTICLASS
 
-                
-                #print(f"Val loss:   {val_loss}")
-                #print(f"Train loss: {train_loss}")
-                experiment.log_metric('train_loss',train_loss,step=epoch)
-                experiment.log_metric('val_loss',val_loss,step=epoch)
+                #Log metrics on Comet ML
+                print(train_loss)
+                print(val_loss)
+                experiment.log_metric('train_loss', train_loss, step=epoch)
+                experiment.log_metric('val_loss', val_loss, step=epoch)
                 
                 scheduler.step()
 
                 val_losses.append(val_loss)
 
-                #TODO: Deepcopy and save the model with WORST/best? val accuracy
+                #Save the best performing model
                 if val_loss < best_val:
                     best_val = val_loss
                     best_trained_model=copy.deepcopy(model.state_dict())
-                    torch.save(best_trained_model, os.path.join(filepath,'model.pt'))
+                    torch.save(best_trained_model, os.path.join(filepath, 'model.pt'))
+
         return train_losses, val_losses
 
-
 def main(args):
-    scratchDir ='/scratch/general/nfs1/u6052852/REU_Results' 
-    my_device = torch.device(device = 'cuda' if torch.cuda.is_available() else 'cpu')
-    pin_memory = True if my_device == 'cuda' else False
-    d_type_f32 = torch.float32
     experiment.log_parameters(args)
-    #batch_size = 1
-    #learning_rate= 1e-3
-    #weight_decay = 1e-3
-    #nepochs = 10
-    #val_percent=0.1
-    #train_percent = 1 - val_percent
-    scratchDir = os.path.join(scratchDir,'lr'+str(args.learningRate),'wd'+str(args.weightDecay))
+
+    scratchDir ='/scratch/general/nfs1/u6052852/REU' 
+    scratchDir = os.path.join(scratchDir,'Results','RS'+str(args.resample),'lr'+str(args.learningRate),'wd'+str(args.weightDecay))
     if(os.path.exists(scratchDir)==False):
         os.makedirs(scratchDir)
 
+    datasetroot = "/uufs/chpc.utah.edu/common/home/u6052852/ocelot/data/ocelot2023_v0.1.2"
 
-    image_transforms = transf.Compose([transf.Resize((128,128)), transf.ToTensor()])
-    mask_transforms = transf.Compose([transf.Resize((128,128)), transf.ToTensor(), PixelThreshold(lower_thresh=1, upper_thresh=255)])
+    scratchDirData = os.path.join(scratchDir,'Data'+str(args.resample))
+    if(os.path.exists(scratchDirData)==False):
+        os.makedirs(scratchDirData)
+        table = pd.read_csv(os.path.join(datasetroot,'data.csv'),header=None)
+        trainData, testData = train_test_split(table,test_size=0.2)
+        train, val = train_test_split(trainData,test_size=0.2)
+        testData.to_csv(os.path.join(scratchDirData,'test.csv'),  header=None, index=False)
+        train.to_csv   (os.path.join(scratchDirData,'train.csv'), header=None, index=False)
+        val.to_csv     (os.path.join(scratchDirData,'val.csv'),   header=None, index=False)
+
+    #Create a list of samples to train, validate, and test on. Resampling can generate a new permutation of data
+    train = list(pd.read_csv(os.path.join(scratchDirData,'train.csv'), header=None).loc[:,0])
+    val   = list(pd.read_csv(os.path.join(scratchDirData,'val.csv'),   header=None).loc[:,0])
+    test  = list(pd.read_csv(os.path.join(scratchDirData,'test.csv'),  header=None).loc[:,0])
+
+    #Some device specifications
+    my_device = torch.device(device = 'cuda' if torch.cuda.is_available() else 'cpu')
+    pin_memory = True if my_device == 'cuda' else False
+
+    #specify datatype to work with
+    d_type_f32 = torch.float32
 
     #First we need to specify some info on our model: we have 3 channels RGB, 1 class: tissue
     model = Unet(n_channels=args.inputChannel, n_classes=args.outputChannel)
 
-    
+    #The transformations we are applying to the data that we are training or validating/testing on. 
+    #Training data undergoes data augmentation for model performance improvements with such limited data.
+    train_transform =   A.Compose([ A.Resize(128,128),
+                                    A.HorizontalFlip(p=0.5), #TODO: FIX FOR SCORING and MIN-MAX INSTEAD OF NORMALIZATION? REMOVE RESIZING WHEN DONE.
+                                    ToTensorV2()])
+    valtest_transform = A.Compose([ A.Resize(128,128),
+                                    ToTensorV2()])           #TODO: FIX FOR SCORING and MIN-MAX INSTEAD OF NORMALIZATION? REMOVE RESIZING WHEN DONE.
 
-    train_score, val_score = tiss_training_loop(args,model,
-                            my_device,
-                            experiment,
-                            mask_transforms=mask_transforms,
-                            image_transforms=image_transforms,filepath=scratchDir)
+    #We perform the necessary train/val/test loading based on our resampling
+    train_split = OcelotDatasetLoader2(train,
+                                       datasetroot,
+                                       transforms=train_transform,
+                                       multiclass=True) 
+    val_split   = OcelotDatasetLoader2(val,
+                                       datasetroot,
+                                       transforms=valtest_transform,
+                                       multiclass=True) 
+    testData  = OcelotDatasetLoader2(test,
+                                     datasetroot,
+                                     transforms=valtest_transform,
+                                     multiclass=True) 
+    
+    #We pass into dataloader provided by torch
+    train_loader = DataLoader(train_split, 
+                             batch_size=args.batchSize, 
+                            num_workers=4)
+    val_loader = DataLoader(val_split, 
+                            batch_size=args.batchSize, 
+                            num_workers=4)
+    test_loader = DataLoader(testData,
+                             batch_size=args.batchSize,
+                             pin_memory=4)
+
+    #Start the actual training loop
+    train_score, val_score = tiss_training_loop(args,
+                                                train_loader,
+                                                val_loader,
+                                                model,
+                                                my_device,
+                                                experiment,
+                                                train,
+                                                filepath=scratchDir)
 
 if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(description='Short sample app')
     ## Model Arguments
     parser.add_argument('-ich'              ,type=int  , action="store", dest='inputChannel'     , default=3           )
-    parser.add_argument('-och'              ,type=int  , action="store", dest='outputChannel'    , default=1           )
-    #parser.add_argument('-filterSize'       ,type=int  , action="store", dest='filterSize'       , default=64          )
+    parser.add_argument('-och'              ,type=int  , action="store", dest='outputChannel'    , default=3           )
+    parser.add_argument('-resample'         ,type=int  , action="store", dest='resample'         , default=0           )
     #parser.add_argument('-patchSize'        ,type=int  , action="store", dest='patchSize'        , default=256         )
     #parser.add_argument('-method'           ,type=str  , action="store", dest='method'           , default='baseline'    )
-   # parser.add_argument('-norm'             ,type=str  , action="store", dest='norm'             , default='Batch'     )
+    #parser.add_argument('-norm'             ,type=str  , action="store", dest='norm'             , default='Batch'     )
     #parser.add_argument('-path'             ,type=str  , action="store", dest='path'             , default='./'     )
     #parser.add_argument('-initType'         ,type=int  , action="store", dest='initType'         , default=0           )
     #parser.add_argument('-factorSize'       ,type=int  , action="store", dest='factorSize'       , default=1           )
@@ -209,7 +234,7 @@ if __name__ == "__main__":
     parser.add_argument('-amp'               ,type=bool  , action="store", dest='amp'          , default=False           )
     parser.add_argument('-lr'               ,type=float, action="store", dest='learningRate'     , default=1e-4        )
     parser.add_argument('-wd'               ,type=float, action="store", dest='weightDecay'      , default=1e-4        )
-    parser.add_argument('-nepoch'           ,type=int  , action="store", dest='epochs'            , default=10          )
+    parser.add_argument('-nepoch'           ,type=int  , action="store", dest='epochs'            , default=20          )
     parser.add_argument('-batchSize'        ,type=int  , action="store", dest='batchSize'        , default=4           )
     #parser.add_argument('-sourcedataset'    ,type=str  , action="store", dest='sourcedataset'          , default='crag'      )
     #parser.add_argument('-targetdataset'    ,type=str  , action="store", dest='targetdataset'          , default='glas'      )
