@@ -147,9 +147,9 @@ class OcelotDatasetLoader2(Dataset):
             threshold = BinaryPixelThreshold(lower_thresh=1, upper_thresh=255) #TODO: NOT IDEAL BUT WORKS FOR NOW
             tissMask = threshold(tissMask)
         elif any(transform.__class__ == ToTensorV2 for transform in self.transforms) and self.multiclass == True:
-            tissMask = torch.where(tissMask == 255, 2, tissMask) #TODO: CHECK
             tissMask = torch.where(tissMask == 1, 0, tissMask)
-            tissMask = torch.where(tissMask == 2, 1, tissMask)                
+            tissMask = torch.where(tissMask == 2, 1, tissMask) 
+            tissMask = torch.where(tissMask == 255, 2, tissMask)
 
         #if self.dataToReturn == 'cell' or self.dataToReturn == 'Cell':
         #    return cellImage, cellAnn

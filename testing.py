@@ -23,6 +23,7 @@ import logging
 from tqdm import tqdm
 import matplotlib.pyplot as plt
 from monai.losses import DiceCELoss, DiceLoss, MaskedDiceLoss
+from monai.networks.utils import one_hot
 import copy
 import albumentations as A
 from albumentations.pytorch import ToTensorV2
@@ -45,15 +46,15 @@ val_percent=0.1
 train_percent = 1 - val_percent
 
 #First we need to specify some info on our model: we have 3 channels RGB, 1 class: tissue
-model = Unet(n_channels=3, n_classes=3)
+model = Unet(n_channels=3, n_classes=1)
 
-train_transform =   A.Compose([ A.Resize(128,128),
+train_transform =   A.Compose([ A.Resize(256,256),
                                 A.HorizontalFlip(p=0.5),
                                 Normalize(mean=0.0, std=1.0, always_apply=True), #TODO: THIS OR MIN-MAX SCALING?
                                 ToTensorV2(),
                                 ])
 
-valtest_transform = A.Compose([ A.Resize(128,128),
+valtest_transform = A.Compose([ A.Resize(256,256),
                                 Normalize(mean=0.0, std=1.0,always_apply=True), #TODO: THIS OR MIN-MAX SCALING?
                                 ToTensorV2(),
                                 ])
@@ -67,13 +68,16 @@ test  = list(pd.read_csv(os.path.join(scratchDirData,'test.csv'),  header=None).
 
 train_split = OcelotDatasetLoader2(train,
                                     datasetroot,
-                                    transforms=train_transform) 
+                                    transforms=train_transform,
+                                    multiclass=True) 
 val_split   = OcelotDatasetLoader2(val,
                                     datasetroot,
-                                    transforms=valtest_transform) 
+                                    transforms=valtest_transform,
+                                    multiclass=True) 
 testData  = OcelotDatasetLoader2(test,
                                     datasetroot,
-                                    transforms=valtest_transform) 
+                                    transforms=valtest_transform,
+                                    multiclass=True) 
 
 #We pass into dataloader provided by torch
 train_loader = DataLoader(train_split, 
@@ -86,19 +90,40 @@ test_loader = DataLoader(testData,
                         batch_size=2,
                         num_workers=4)
 
-mask = test_loader.dataset[9][1]
-mask = mask.unsqueeze(0)
+#mask = test_loader.dataset[14][1]
+#mask = mask.unsqueeze(0).unsqueeze(0)
 
-def one_hot(masks: torch.Tensor, num_classes):
-    batch_size, height, width = masks.shape
+#def one_hot(masks: torch.Tensor, num_classes):
+#    batch_size, height, width = masks.shape
+#
+#    one_hot_mask = torch.zeros(batch_size, num_classes, height, width, dtype=masks.dtype, device=masks.device)#
+#
+#    # Fill the one-hot tensor based on the class labels in the mask
+#    for channel, pixel_value in enumerate([1, 2, 255]):
+#        one_hot_mask[:, channel, :, :] = (masks == pixel_value)
+#
+#    return one_hot_mask
 
-    one_hot_mask = torch.zeros(batch_size, num_classes, height, width, dtype=masks.dtype, device=masks.device)
+#x = one_hot(mask, model.n_classes, dim=1)
 
-    # Fill the one-hot tensor based on the class labels in the mask
-    for channel, pixel_value in enumerate([1, 2, 255]):
-        one_hot_mask[:, channel, :, :] = (masks == pixel_value)
+#a = torch.randint(0, 3, size=(1, 1, 2, 2))
+#print(a)
+#out = one_hot(a, num_classes=3, dim=1)
+#print(out)  # torch.Size([2, 2, 2, 2])
 
-    return one_hot_mask
+#print(x)
+#print(x.shape)
+#print(torch.unique(x[0][0]))
+#print(torch.unique(x[0][1]))
+#print(torch.unique(x[0][2]))
+#
+#model.eval()
+#z = model(test_loader.dataset[0][0].unsqueeze(0))
+#print(DiceLoss(sigmoid=True)(z, x))
+#print(z)
 
+#print(test_loader.dataset[0][1])
+#print(torch.unique(test_loader.dataset[0][1]))
 print(evaluate(None, model, test_loader, my_device, amp=False))
-
+#model.eval()
+#print(model(test_loader.dataset[0][0].unsqueeze(0)))
