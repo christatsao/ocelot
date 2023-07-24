@@ -91,12 +91,6 @@ def tiss_training_loop(args,
                         #if model.n_classes == 1:
                         loss = criterion(infer_masks, true_masks.float())
                         epoch_loss += torch.sum(loss).detach().cpu().item()
-                        
-                        #elif model.n_classes > 1:
-                            #infer_masks = torch.softmax(infer_masks, dim=1)
-                            #true_masks = one_hot(true_masks, model.n_classes, dim=1)
-                            #loss = criterion(infer_masks, true_masks.float())
-                            #epoch_loss += torch.sum(loss).detach().cpu().item()
 
                     optimizer.zero_grad()
 
@@ -178,23 +172,23 @@ def main(args):
 
     #The transformations we are applying to the data that we are training or validating/testing on. 
     #Training data undergoes data augmentation for model performance improvements with such limited data.
-    train_transform = A.Compose([#A.Resize(256,256),
+    train_transform = A.Compose([#A.Resize(128,128),
                                 A.ColorJitter(p=0.1),
                                 #A.Affine(keep_ratio=True, p=0.1),   #KEEP?
                                 A.Flip(p=0.5),          
                                 #A.Equalize(p=0.2),                  #KEEP?
-                                #A.Blur(blur_limit=2, p=0.2),        #KEEP?
-                                A.ElasticTransform(p=0.1),
+                                A.Blur(blur_limit=2, p=0.3),         #KEEP?
+                                A.ElasticTransform(p=0.2),
                                 A.GaussNoise(p=0.1),
                                 A.HorizontalFlip(p=0.5),
                                 A.RandomRotate90(p=0.5), #TODO: MIN-MAX INSTEAD OF NORMALIZATION? REMOVE RESIZING WHEN DONE. AVOID RESIZE (BECAUSE OF OTHER DATA)?
                                 A.Normalize(mean = 0.0, std=1, always_apply=True),
                                 ToTensorV2()])
-    valtest_transform = A.Compose([#A.Resize(256,256),
+    valtest_transform = A.Compose([#A.Resize(128,128),
                                 A.Normalize(mean = 0.0, std=1, always_apply=True),
                                 ToTensorV2()])           #TODO: MIN-MAX INSTEAD OF NORMALIZATION? REMOVE RESIZING WHEN DONE.
 
-    if model.n_channels > 1:
+    if model.n_classes > 1:
         multiclass = True
     else:
         multiclass = False
@@ -255,7 +249,7 @@ if __name__ == "__main__":
     parser.add_argument('-amp'               ,type=bool  , action="store", dest='amp'          , default=False           )
     parser.add_argument('-lr'               ,type=float, action="store", dest='learningRate'     , default=1e-4        )
     parser.add_argument('-wd'               ,type=float, action="store", dest='weightDecay'      , default=1e-4        )
-    parser.add_argument('-nepoch'           ,type=int  , action="store", dest='epochs'            , default=150          )
+    parser.add_argument('-nepoch'           ,type=int  , action="store", dest='epochs'            , default=300          )
     parser.add_argument('-batchSize'        ,type=int  , action="store", dest='batchSize'        , default=2           )
     #parser.add_argument('-sourcedataset'    ,type=str  , action="store", dest='sourcedataset'          , default='crag'      )
     #parser.add_argument('-targetdataset'    ,type=str  , action="store", dest='targetdataset'          , default='glas'      )

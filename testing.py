@@ -41,7 +41,7 @@ d_type_f32 = torch.float32
 #First we need to specify some info on our model: we have 3 channels RGB, 1 class: tissue
 model = Unet(n_channels=3, n_classes=1)
 
-valtest_transform = A.Compose([ A.Resize(512,512),
+valtest_transform = A.Compose([ #A.Resize(512,512),
                                 A.Normalize(mean = 0.0, std=1, always_apply=True),
                                 ToTensorV2(),
                                 ])
@@ -61,8 +61,30 @@ test_loader = DataLoader(testData,
                         batch_size=2,
                         num_workers=4)
 
-model.load_state_dict(torch.load('/scratch/general/nfs1/u6052852/REU_Results/lr0.009/wd0.0001/model.pt'))
+model.load_state_dict(torch.load('/scratch/general/nfs1/u6052852/REU/Results/RS0/lr0.01/wd0.0001/model.pt'))
 model.eval()
 
-x = test_loader.dataset[0][0].unsqueeze(0)
-x = x.float()
+idx = 55
+
+image = test_loader.dataset[idx][0].unsqueeze(0)
+image = image.float()
+
+true_mask = test_loader.dataset[idx][1]
+true_mask = true_mask.numpy()
+
+prediction = torch.sigmoid(model(image))
+threshold = torch.tensor([0.5])
+predicted_mask = (prediction>threshold).float()*1
+predicted_mask = predicted_mask.squeeze(0).squeeze(0).numpy()
+
+plt.imshow(predicted_mask)
+plt.savefig('test_predicted_mask.png')
+plt.close()
+
+image = (image.squeeze(0) * 255).to(torch.uint8)
+PILimage = transforms.ToPILImage()(image)
+PILimage.save('test_image.png')
+
+plt.imshow(true_mask)
+plt.savefig('test_true_mask.png')
+plt.close()
