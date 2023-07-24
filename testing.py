@@ -30,7 +30,6 @@ from albumentations.pytorch import ToTensorV2
 import cv2
 import pandas as pd
 from sklearn.model_selection import train_test_split
-
 from albumentations.augmentations.transforms import Normalize, PixelDropout
 from torchvision import transforms
 
@@ -38,92 +37,32 @@ from torchvision import transforms
 my_device = torch.device(device = 'cuda' if torch.cuda.is_available() else 'cpu')
 pin_memory = True if my_device == 'cuda' else False
 d_type_f32 = torch.float32
-batch_size = 1
-learning_rate= 1e-3
-weight_decay = 1e-3
-nepochs = 10
-val_percent=0.1
-train_percent = 1 - val_percent
 
 #First we need to specify some info on our model: we have 3 channels RGB, 1 class: tissue
 model = Unet(n_channels=3, n_classes=1)
 
-train_transform =   A.Compose([ A.Resize(256,256),
-                                A.HorizontalFlip(p=0.5),
-                                Normalize(mean=0.0, std=1.0, always_apply=True), #TODO: THIS OR MIN-MAX SCALING?
-                                ToTensorV2(),
-                                ])
-
-valtest_transform = A.Compose([ A.Resize(256,256),
-                                Normalize(mean=0.0, std=1.0,always_apply=True), #TODO: THIS OR MIN-MAX SCALING?
+valtest_transform = A.Compose([ A.Resize(512,512),
+                                A.Normalize(mean = 0.0, std=1, always_apply=True),
                                 ToTensorV2(),
                                 ])
 
 datasetroot = "/uufs/chpc.utah.edu/common/home/u6052852/ocelot/data/ocelot2023_v0.1.2"
 scratchDirData = '/scratch/general/nfs1/u6052852/REU/Data0'
 
-train = list(pd.read_csv(os.path.join(scratchDirData,'train.csv'), header=None).loc[:,0])
-val   = list(pd.read_csv(os.path.join(scratchDirData,'val.csv'),   header=None).loc[:,0])
 test  = list(pd.read_csv(os.path.join(scratchDirData,'test.csv'),  header=None).loc[:,0])
 
-train_split = OcelotDatasetLoader2(train,
-                                    datasetroot,
-                                    transforms=train_transform,
-                                    multiclass=True) 
-val_split   = OcelotDatasetLoader2(val,
-                                    datasetroot,
-                                    transforms=valtest_transform,
-                                    multiclass=True) 
 testData  = OcelotDatasetLoader2(test,
                                     datasetroot,
                                     transforms=valtest_transform,
-                                    multiclass=True) 
+                                    multiclass=False) 
 
 #We pass into dataloader provided by torch
-train_loader = DataLoader(train_split, 
-                        batch_size=2, 
-                        num_workers=4)
-val_loader = DataLoader(val_split, 
-                        batch_size=2, 
-                        num_workers=4)
 test_loader = DataLoader(testData,
                         batch_size=2,
                         num_workers=4)
 
-#mask = test_loader.dataset[14][1]
-#mask = mask.unsqueeze(0).unsqueeze(0)
+model.load_state_dict(torch.load('/scratch/general/nfs1/u6052852/REU_Results/lr0.009/wd0.0001/model.pt'))
+model.eval()
 
-#def one_hot(masks: torch.Tensor, num_classes):
-#    batch_size, height, width = masks.shape
-#
-#    one_hot_mask = torch.zeros(batch_size, num_classes, height, width, dtype=masks.dtype, device=masks.device)#
-#
-#    # Fill the one-hot tensor based on the class labels in the mask
-#    for channel, pixel_value in enumerate([1, 2, 255]):
-#        one_hot_mask[:, channel, :, :] = (masks == pixel_value)
-#
-#    return one_hot_mask
-
-#x = one_hot(mask, model.n_classes, dim=1)
-
-#a = torch.randint(0, 3, size=(1, 1, 2, 2))
-#print(a)
-#out = one_hot(a, num_classes=3, dim=1)
-#print(out)  # torch.Size([2, 2, 2, 2])
-
-#print(x)
-#print(x.shape)
-#print(torch.unique(x[0][0]))
-#print(torch.unique(x[0][1]))
-#print(torch.unique(x[0][2]))
-#
-#model.eval()
-#z = model(test_loader.dataset[0][0].unsqueeze(0))
-#print(DiceLoss(sigmoid=True)(z, x))
-#print(z)
-
-#print(test_loader.dataset[0][1])
-#print(torch.unique(test_loader.dataset[0][1]))
-print(evaluate(None, model, test_loader, my_device, amp=False))
-#model.eval()
-#print(model(test_loader.dataset[0][0].unsqueeze(0)))
+x = test_loader.dataset[0][0].unsqueeze(0)
+x = x.float()
