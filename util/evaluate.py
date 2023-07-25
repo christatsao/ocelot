@@ -1,21 +1,24 @@
 import torch
 from tqdm import tqdm
+import torchmetrics
 from monai.losses import DiceCELoss, DiceLoss
-from monai.networks.utils import one_hot
+from comet_ml import Experiment
+
 
 @torch.inference_mode()
-def evaluate(args, model, dataloader, device, amp):
-    #Set to evaluation mode
+def evaluate(args, model, dataloader, device, amp, experiment=None):
+    
+    #Set model to evaluation mode
     model.eval()
     metric_sum = 0
     n_samples = len(dataloader.dataset)
     n_batches = n_samples / dataloader.batch_size
+
     if model.n_classes == 1:
         loss_metric = DiceCELoss(sigmoid=True)
     else:
         loss_metric = DiceCELoss(softmax=True, to_onehot_y=True)
 
-    #No need to waste memory resources for gradients if we are not using backpropagation
     with torch.autocast(device.type if device.type == 'cuda' else 'cpu', enabled=amp):
         for batch in tqdm(dataloader, total=n_samples, desc='Validation round', unit='batch', leave=False):
             images, true_masks = batch[0], batch[1]
@@ -32,4 +35,7 @@ def evaluate(args, model, dataloader, device, amp):
     
     #We divide by model.n_channels based on whether we are performing multiclass or binary
     avg_metric = (metric_sum/n_batches)/model.n_classes
+
+    if experiment is not None:
+        experiment.log_metric(avg_metric)
     return avg_metric

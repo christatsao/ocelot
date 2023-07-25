@@ -9,7 +9,7 @@
 #SBATCH --gres=gpu:p100:1 
 #SBATCH --mem=50000
 
-/uufs/chpc.utah.edu/common/home/u6052852/anaconda3/envs/myenv/bin/python testing.py
+/uufs/chpc.utah.edu/common/home/u6052852/anaconda3/envs/myenv/bin/python example.py
 
 
  ##

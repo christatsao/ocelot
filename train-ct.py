@@ -10,7 +10,7 @@ sys.path.append(PROJECT_ROOT)
 from util.constants import DATA_PATHS
 from util.dataset import OcelotDatasetLoader, OcelotDatasetLoader2, BinaryPixelThreshold
 from util.unet import Unet
-from util.evaluate import evaluate
+from util.calc_loss import calc_DiceCEloss
 import argparse
 
 #other modules of interest
@@ -111,7 +111,7 @@ def tiss_training_loop(args,
 
                 #Move on to validation loss
                 if(epoch%3==0):
-                    val_loss = evaluate(args, 
+                    val_loss = calc_DiceCEloss(args, 
                                         model, 
                                         val_loader, 
                                         device, 
