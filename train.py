@@ -8,9 +8,11 @@ sys.path.append(PROJECT_ROOT)
 
 #Local packages loaded from src specifying useful constants, and our custom loader
 from util.constants import DATA_PATHS
-from util.dataset import OcelotDatasetLoader, OcelotDatasetLoader2, BinaryPixelThreshold
+from util.dataset import OcelotDatasetLoader, OcelotDatasetLoader2
 from util.unet import Unet
 from util.evaluate import evaluate
+from util.test import test
+
 import argparse
 
 #other modules of interest
@@ -51,8 +53,7 @@ def tiss_training_loop(args,
         optimizer = torch.optim.SGD(model.parameters(),
                                     lr=args.learningRate,
                                     momentum=args.momentum,
-                                    weight_decay=args.weightDecay,
-                                    maximize=False)
+                                    weight_decay=args.weightDecay)
         
         #criterion = DiceCELoss(sigmoid=True)
         if model.n_classes == 1:
@@ -61,10 +62,9 @@ def tiss_training_loop(args,
             criterion =  DiceCELoss(softmax=True, to_onehot_y=True)
 
         #we use max here as our purpose is to maximize our measured metric (DICE score of 1 is better: more mask similarity)
-        scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=5)
+        scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=args.epochs)
         
         #Only for AMP. prevents loss of values due to switch between multiple formats
-        grad_scaler = torch.cuda.amp.grad_scaler.GradScaler(enabled=args.amp)
         model.to(device)
         val_losses = []
         train_losses = []
@@ -95,14 +95,13 @@ def tiss_training_loop(args,
                     optimizer.zero_grad()
 
                     #Scales w/ AMP enabled from loss and does backprop
-                    grad_scaler.scale(loss).backward()
-
-                    #Grad clipping restricts gradient to a range. Research vanishing gradient for more.
-                    torch.nn.utils.clip_grad_norm_(model.parameters(), args.gradient_clipping)
+                    loss.backward()
                     
                     #Step the optimizer for new model parameters (keeping grad scaling in mind assuming AMP)
-                    grad_scaler.step(optimizer)
-                    grad_scaler.update()
+                    optimizer.step()
+                    
+                    #grad_scaler.update()
+
                     progress_bar.update(images.shape[0])
                 
                 #Calculate train loss
@@ -138,12 +137,12 @@ def tiss_training_loop(args,
 def main(args):
     experiment.log_parameters(args)
 
-    scratchDir ='/scratch/general/nfs1/u6052852/REU' 
+    scratchDir ='/scratch/general/nfs1/u6052852/REU' #NOTE: PASTE IN YOUR OWN scratchDir
     scratchDir = os.path.join(scratchDir,'Results','RS'+str(args.resample),'lr'+str(args.learningRate),'wd'+str(args.weightDecay))
     if(os.path.exists(scratchDir)==False):
         os.makedirs(scratchDir)
 
-    datasetroot = "/uufs/chpc.utah.edu/common/home/u6052852/ocelot/data/ocelot2023_v0.1.2"
+    datasetroot = os.path.join(PROJECT_ROOT, "/ocelot/data/ocelot2023_v0.1.2")
 
     scratchDirData = os.path.join(scratchDir,'Data'+str(args.resample))
     if(os.path.exists(scratchDirData)==False):
@@ -155,7 +154,7 @@ def main(args):
         train.to_csv   (os.path.join(scratchDirData,'train.csv'), header=None, index=False)
         val.to_csv     (os.path.join(scratchDirData,'val.csv'),   header=None, index=False)
 
-    #Create a list of samples to train, validate, and test on. Resampling can generate a new permutation of data
+    #Create a list of samples to train, validate, and test on. Resampling can generate a new combination of data
     train = list(pd.read_csv(os.path.join(scratchDirData,'train.csv'), header=None).loc[:,0])
     val   = list(pd.read_csv(os.path.join(scratchDirData,'val.csv'),   header=None).loc[:,0])
     test  = list(pd.read_csv(os.path.join(scratchDirData,'test.csv'),  header=None).loc[:,0])
@@ -169,17 +168,19 @@ def main(args):
 
     #First we need to specify some info on our model: we have 3 channels RGB, 1 class: tissue
     model = Unet(n_channels=args.inputChannel, n_classes=args.outputChannel)
+    #model.load_state_dict(torch.load('/scratch/general/nfs1/u6052852/REU/Results/RS0/TrainingCheckpoints/lr0.009/wd0.0001/model.pt'))
 
     #The transformations we are applying to the data that we are training or validating/testing on. 
     #Training data undergoes data augmentation for model performance improvements with such limited data.
     train_transform = A.Compose([#A.Resize(128,128),
-                                A.ColorJitter(p=0.1),
+                                A.ColorJitter(p=0.4),
                                 #A.Affine(keep_ratio=True, p=0.1),   #KEEP?
-                                A.Flip(p=0.5),          
+                                A.Flip(p=0.5),
+                                A.ToGray(p=0.5),          
                                 #A.Equalize(p=0.2),                  #KEEP?
-                                A.Blur(blur_limit=2, p=0.3),         #KEEP?
+                                A.Blur(blur_limit=2, p=0.2),
                                 A.ElasticTransform(p=0.2),
-                                A.GaussNoise(p=0.1),
+                                A.GaussNoise(p=0.2),
                                 A.HorizontalFlip(p=0.5),
                                 A.RandomRotate90(p=0.5), #TODO: MIN-MAX INSTEAD OF NORMALIZATION? REMOVE RESIZING WHEN DONE. AVOID RESIZE (BECAUSE OF OTHER DATA)?
                                 A.Normalize(mean = 0.0, std=1, always_apply=True),
@@ -227,6 +228,12 @@ def main(args):
                                                 experiment,
                                                 train,
                                                 filepath=scratchDir)
+    
+    test_score = evaluate(args, 
+                        model, 
+                        test_loader, 
+                        device=my_device, 
+                        amp=args.amp)
 
 if __name__ == "__main__":
 
@@ -244,12 +251,12 @@ if __name__ == "__main__":
     #parser.add_argument('-stepEpoch'        ,type=int  , action="store", dest='stepEpoch'        , default=1000        )
     #parser.add_argument('-binaryClass'      ,type=int  , action="store", dest='binaryClass'      , default=0           )
     ## Training Arguments
-    parser.add_argument('-g_c'               ,type=float  , action="store", dest='gradient_clipping'         , default=1.0       )
+    #parser.add_argument('-g_c'               ,type=float  , action="store", dest='gradient_clipping'         , default=1.0       )
     parser.add_argument('-momen'             ,type=float  , action="store", dest='momentum'       , default=0.98   )
     parser.add_argument('-amp'               ,type=bool  , action="store", dest='amp'          , default=False           )
     parser.add_argument('-lr'               ,type=float, action="store", dest='learningRate'     , default=1e-4        )
-    parser.add_argument('-wd'               ,type=float, action="store", dest='weightDecay'      , default=1e-4        )
-    parser.add_argument('-nepoch'           ,type=int  , action="store", dest='epochs'            , default=300          )
+    parser.add_argument('-wd'               ,type=float, action="store", dest='weightDecay'      , default=1e-4        ) #NOTE: 1e-4 default
+    parser.add_argument('-nepoch'           ,type=int  , action="store", dest='epochs'            , default=100          )
     parser.add_argument('-batchSize'        ,type=int  , action="store", dest='batchSize'        , default=2           )
     #parser.add_argument('-sourcedataset'    ,type=str  , action="store", dest='sourcedataset'          , default='crag'      )
     #parser.add_argument('-targetdataset'    ,type=str  , action="store", dest='targetdataset'          , default='glas'      )

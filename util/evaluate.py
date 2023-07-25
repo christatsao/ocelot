@@ -5,6 +5,7 @@ from monai.networks.utils import one_hot
 
 @torch.inference_mode()
 def evaluate(args, model, dataloader, device, amp):
+    
     #Set to evaluation mode
     model.eval()
     metric_sum = 0
