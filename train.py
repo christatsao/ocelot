@@ -11,7 +11,7 @@ from util.constants import DATA_PATHS
 from util.dataset import OcelotDatasetLoader, OcelotDatasetLoader2
 from util.unet import Unet
 from util.calc_loss import calc_DiceCEloss
-from util.test import test
+from util.evaluate import evaluate
 
 import argparse
 
@@ -111,7 +111,7 @@ def tiss_training_loop(args,
 
                 #Log metrics on Comet ML
                 experiment.log_metric('train_loss', train_loss, step=epoch)
-                experiment.log_metric('val_loss', val_loss, step=epoch)
+                experiment.log_metric('val_loss',   val_loss,   step=epoch)
                 
                 scheduler.step()
                 val_losses.append(val_loss)
@@ -209,7 +209,7 @@ def main(args):
                              batch_size=args.batchSize,
                              pin_memory=4)
 
-    #Start the actual training loop
+    #Start the actual training loop: we log train and validation loss inside
     train_score, val_score = tiss_training_loop(args,
                                                 train_loader,
                                                 val_loader,
@@ -219,11 +219,15 @@ def main(args):
                                                 train,
                                                 filepath=scratchDir)
     
+    #Lets calculate our test loss
     test_score = calc_DiceCEloss(args, 
                                 model, 
                                 test_loader, 
                                 device=my_device, 
                                 amp=args.amp)
+    
+    #Lets log the test loss at the end of our training
+    experiment.log_metric('test_loss', test_score)
 
 if __name__ == "__main__":
 

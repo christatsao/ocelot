@@ -1,12 +1,12 @@
 import torch
 from tqdm import tqdm
+import torchmetrics
 from monai.losses import DiceCELoss, DiceLoss
-from monai.networks.utils import one_hot
 from comet_ml import Experiment
 
 
 @torch.inference_mode()
-def test(args, model, dataloader, device, amp, experiment=None):
+def evaluate(args, model, dataloader, device, amp, experiment=None):
     
     #Set model to evaluation mode
     model.eval()
