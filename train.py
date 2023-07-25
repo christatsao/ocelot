@@ -10,7 +10,7 @@ sys.path.append(PROJECT_ROOT)
 from util.constants import DATA_PATHS
 from util.dataset import OcelotDatasetLoader, OcelotDatasetLoader2
 from util.unet import Unet
-from util.evaluate import evaluate
+from util.calc_loss import calc_DiceCEloss
 from util.test import test
 
 import argparse
@@ -86,22 +86,16 @@ def tiss_training_loop(args,
                     true_masks = true_masks.unsqueeze(1)
 
                     with torch.autocast(device.type if device.type == 'cuda' else 'cpu', enabled=args.amp):
-                        infer_masks = model(images)
                         
-                        #if model.n_classes == 1:
+                        infer_masks = model(images) 
                         loss = criterion(infer_masks, true_masks.float())
                         epoch_loss += torch.sum(loss).detach().cpu().item()
 
                     optimizer.zero_grad()
-
-                    #Scales w/ AMP enabled from loss and does backprop
                     loss.backward()
                     
                     #Step the optimizer for new model parameters (keeping grad scaling in mind assuming AMP)
                     optimizer.step()
-                    
-                    #grad_scaler.update()
-
                     progress_bar.update(images.shape[0])
                 
                 #Calculate train loss
@@ -109,20 +103,17 @@ def tiss_training_loop(args,
                 train_losses.append(train_loss)
 
                 #Move on to validation loss
-                val_loss = evaluate(args, 
+                val_loss = calc_DiceCEloss(args, 
                                     model, 
                                     val_loader, 
                                     device, 
                                     amp=args.amp) #TODO: UPDATE EVALUATION METHOD FOR MULTICLASS
 
                 #Log metrics on Comet ML
-                print(train_loss)
-                print(val_loss)
                 experiment.log_metric('train_loss', train_loss, step=epoch)
                 experiment.log_metric('val_loss', val_loss, step=epoch)
                 
                 scheduler.step()
-
                 val_losses.append(val_loss)
 
                 #Save the best performing model
@@ -181,7 +172,7 @@ def main(args):
                                 A.ElasticTransform(p=0.2),
                                 A.GaussNoise(p=0.2),
                                 A.HorizontalFlip(p=0.5),
-                                A.RandomRotate90(p=0.5), #TODO: MIN-MAX INSTEAD OF NORMALIZATION? REMOVE RESIZING WHEN DONE. AVOID RESIZE (BECAUSE OF OTHER DATA)?
+                                A.RandomRotate90(p=0.5), #TODO: MIN-MAX INSTEAD OF NORMALIZATION? REMOVE RESIZING WHEN DONE. AVOID RESIZE.
                                 A.Normalize(mean = 0.0, std=1, always_apply=True),
                                 ToTensorV2()])
     valtest_transform = A.Compose([#A.Resize(128,128),
@@ -228,11 +219,11 @@ def main(args):
                                                 train,
                                                 filepath=scratchDir)
     
-    test_score = evaluate(args, 
-                        model, 
-                        test_loader, 
-                        device=my_device, 
-                        amp=args.amp)
+    test_score = calc_DiceCEloss(args, 
+                                model, 
+                                test_loader, 
+                                device=my_device, 
+                                amp=args.amp)
 
 if __name__ == "__main__":
 

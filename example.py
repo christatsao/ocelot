@@ -10,7 +10,7 @@ sys.path.append(PROJECT_ROOT)
 from util.constants import DATA_PATHS
 from util.dataset import OcelotDatasetLoader, OcelotDatasetLoader2, BinaryPixelThreshold
 from util.unet import Unet
-from util.evaluate import evaluate
+from util.calc_loss import calc_DiceCELoss
 import argparse
 
 #other modules of interest

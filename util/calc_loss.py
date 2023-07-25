@@ -4,7 +4,7 @@ from monai.losses import DiceCELoss, DiceLoss
 from monai.networks.utils import one_hot
 
 @torch.inference_mode()
-def evaluate(args, model, dataloader, device, amp):
+def calc_DiceCEloss(args, model, dataloader, device, amp):
     
     #Set to evaluation mode
     model.eval()
