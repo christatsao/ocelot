@@ -109,12 +109,11 @@ def tiss_training_loop(args,
                 train_losses.append(train_loss)
 
                 #Move on to validation loss
-                if(epoch%3==0):
-                    val_loss = evaluate(args, 
-                                        model, 
-                                        val_loader, 
-                                        device, 
-                                        amp=args.amp) #TODO: UPDATE EVALUATION METHOD FOR MULTICLASS
+                val_loss = evaluate(args, 
+                                    model, 
+                                    val_loader, 
+                                    device, 
+                                    amp=args.amp) #TODO: UPDATE EVALUATION METHOD FOR MULTICLASS
 
                 #Log metrics on Comet ML
                 print(train_loss)
