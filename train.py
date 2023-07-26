@@ -106,8 +106,7 @@ def tiss_training_loop(args,
                 val_loss = calc_DiceCEloss(args, 
                                     model, 
                                     val_loader, 
-                                    device, 
-                                    amp=args.amp) #TODO: UPDATE EVALUATION METHOD FOR MULTICLASS
+                                    device) #TODO: UPDATE EVALUATION METHOD FOR MULTICLASS
 
                 #Log metrics on Comet ML
                 experiment.log_metric('train_loss', train_loss, step=epoch)
@@ -123,8 +122,11 @@ def tiss_training_loop(args,
                     torch.save(best_trained_model, os.path.join(filepath, 'model.pt'))
 
                 if epoch % 3 == 0:
-                    train_mIOU = evaluate(args, model, train_loader, device, epoch, experiment)
-                    val_mIOU = evaluate(args, model, val_loader, device, epoch, experiment)
+                    train_mIOU = evaluate(args, model, train_loader, device)
+                    val_mIOU = evaluate(args, model, val_loader, device)
+
+                    experiment.log_metric("train_mIOU", train_mIOU, step=epoch)
+                    experiment.log_metric("val_mIOU", val_mIOU, step=epoch)
 
         return train_losses, val_losses
 

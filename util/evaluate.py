@@ -7,7 +7,7 @@ from monai.networks.utils import one_hot
 
 
 @torch.inference_mode()
-def evaluate(args, model, dataloader, device, epoch, experiment=None):
+def evaluate(args, model, dataloader, device):
     
     #Set model to evaluation mode
     model.eval()
@@ -22,7 +22,7 @@ def evaluate(args, model, dataloader, device, epoch, experiment=None):
 
     with torch.autocast(device.type if device.type == 'cuda' else 'cpu', enabled=args.amp):
         
-        for batch in tqdm(dataloader, total=n_samples, desc='Validation round', unit='batch', leave=False):
+        for batch in tqdm(dataloader, total=n_samples, desc='Evaluation round', unit='batch', leave=False):
             
             images, true_masks = batch[0], batch[1]
             images = images.to(device=device, dtype=torch.float32, memory_format=torch.channels_last if args.amp==True else torch.preserve_format)
@@ -46,8 +46,5 @@ def evaluate(args, model, dataloader, device, epoch, experiment=None):
     
     #We divide by model.n_channels based on whether we are performing multiclass or binary
     mIOU = (metric_sum/n_batches)
-
-    if experiment is not None:
-        experiment.log_metric('mIOU', mIOU, step=epoch)
 
     return mIOU
