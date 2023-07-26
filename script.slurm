@@ -11,10 +11,18 @@
 
 ### /uufs/chpc.utah.edu/common/home/u6052852/anaconda3/envs/myenv/bin/python train.py -lr 0.001
 ### /uufs/chpc.utah.edu/common/home/u6052852/anaconda3/envs/myenv/bin/python train.py -lr 0.005
-/uufs/chpc.utah.edu/common/home/u6052852/anaconda3/envs/myenv/bin/python train.py -resample 1 -lr 0.02
-/uufs/chpc.utah.edu/common/home/u6052852/anaconda3/envs/myenv/bin/python train.py -resample 1 -lr 0.05
-/uufs/chpc.utah.edu/common/home/u6052852/anaconda3/envs/myenv/bin/python train.py -resample 1 -lr 0.01
-/uufs/chpc.utah.edu/common/home/u6052852/anaconda3/envs/myenv/bin/python train.py -resample 1 -lr 0.005
+/uufs/chpc.utah.edu/common/home/u6052852/anaconda3/envs/myenv/bin/python train.py -resample 1 -lr 0.01 -wd 0.0001
+/uufs/chpc.utah.edu/common/home/u6052852/anaconda3/envs/myenv/bin/python train.py -resample 1 -lr 0.01 -wd 0.001
+/uufs/chpc.utah.edu/common/home/u6052852/anaconda3/envs/myenv/bin/python train.py -resample 1 -lr 0.05 -wd 0.0001
+/uufs/chpc.utah.edu/common/home/u6052852/anaconda3/envs/myenv/bin/python train.py -resample 1 -lr 0.05 -wd 0.001
+/uufs/chpc.utah.edu/common/home/u6052852/anaconda3/envs/myenv/bin/python train.py -resample 1 -lr 0.01 -wd 0.001
+/uufs/chpc.utah.edu/common/home/u6052852/anaconda3/envs/myenv/bin/python train.py -resample 1 -lr 0.01 -wd 0.0001
+/uufs/chpc.utah.edu/common/home/u6052852/anaconda3/envs/myenv/bin/python train.py -resample 1 -lr 0.005 -wd 0.001
+/uufs/chpc.utah.edu/common/home/u6052852/anaconda3/envs/myenv/bin/python train.py -resample 1 -lr 0.005 -wd 0.0001
+/uufs/chpc.utah.edu/common/home/u6052852/anaconda3/envs/myenv/bin/python train.py -resample 1 -lr 0.009 -wd 0.001
+/uufs/chpc.utah.edu/common/home/u6052852/anaconda3/envs/myenv/bin/python train.py -resample 1 -lr 0.009 -wd 0.0001
+
+
 
 
 

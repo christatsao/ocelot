@@ -10,7 +10,7 @@ sys.path.append(PROJECT_ROOT)
 from util.constants import DATA_PATHS
 from util.dataset import OcelotDatasetLoader, OcelotDatasetLoader2, BinaryPixelThreshold
 from util.unet import Unet
-from util.calc_loss import calc_DiceCELoss
+from util.losses import calc_DiceCELoss
 import argparse
 
 #other modules of interest
@@ -57,9 +57,9 @@ else:
     multiclass =True
 
 testData  = OcelotDatasetLoader2(test,
-                                    datasetroot,
-                                    transforms=valtest_transform,
-                                    multiclass=multiclass) 
+                                datasetroot,
+                                transforms=valtest_transform,
+                                multiclass=multiclass) 
 
 #We pass into dataloader provided by torch
 test_loader = DataLoader(testData,

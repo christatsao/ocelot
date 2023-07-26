@@ -10,7 +10,7 @@ sys.path.append(PROJECT_ROOT)
 from util.constants import DATA_PATHS
 from util.dataset import OcelotDatasetLoader, OcelotDatasetLoader2
 from util.unet import Unet
-from util.calc_loss import calc_DiceCEloss
+from util.losses import calc_DiceCEloss
 from util.evaluate import evaluate
 
 import argparse
@@ -122,6 +122,10 @@ def tiss_training_loop(args,
                     best_trained_model=copy.deepcopy(model.state_dict())
                     torch.save(best_trained_model, os.path.join(filepath, 'model.pt'))
 
+                if epoch % 3 == 0:
+                    train_mIOU = evaluate(args, model, train_loader, device, epoch, experiment)
+                    val_mIOU = evaluate(args, model, val_loader, device, epoch, experiment)
+
         return train_losses, val_losses
 
 def main(args):
@@ -132,7 +136,7 @@ def main(args):
     if(os.path.exists(scratchDir)==False):
         os.makedirs(scratchDir)
 
-    datasetroot = os.path.join(PROJECT_ROOT, "/ocelot/data/ocelot2023_v0.1.2")
+    datasetroot = "/uufs/chpc.utah.edu/common/home/u6052852/ocelot/data/ocelot2023_v0.1.2"
 
     scratchDirData = os.path.join(scratchDir,'Data'+str(args.resample))
     if(os.path.exists(scratchDirData)==False):
@@ -162,22 +166,20 @@ def main(args):
 
     #The transformations we are applying to the data that we are training or validating/testing on. 
     #Training data undergoes data augmentation for model performance improvements with such limited data.
-    train_transform = A.Compose([#A.Resize(128,128),
-                                A.ColorJitter(p=0.4),
-                                #A.Affine(keep_ratio=True, p=0.1),   #KEEP?
-                                A.Flip(p=0.5),
-                                A.ToGray(p=0.5),          
-                                #A.Equalize(p=0.2),                  #KEEP?
-                                A.Blur(blur_limit=2, p=0.2),
-                                A.ElasticTransform(p=0.2),
-                                A.GaussNoise(p=0.2),
-                                A.HorizontalFlip(p=0.5),
-                                A.RandomRotate90(p=0.5), #TODO: MIN-MAX INSTEAD OF NORMALIZATION? REMOVE RESIZING WHEN DONE. AVOID RESIZE.
-                                A.Normalize(mean = 0.0, std=1, always_apply=True),
-                                ToTensorV2()])
-    valtest_transform = A.Compose([#A.Resize(128,128),
-                                A.Normalize(mean = 0.0, std=1, always_apply=True),
-                                ToTensorV2()])           #TODO: MIN-MAX INSTEAD OF NORMALIZATION? REMOVE RESIZING WHEN DONE.
+    train_transform = A.Compose([A.ColorJitter(p=0.4),
+                                    #A.Affine(keep_ratio=True, p=0.1),   #KEEP?
+                                    A.Flip(p=0.5),
+                                    A.ToGray(p=0.5),          
+                                    #A.Equalize(p=0.2),                  #KEEP?
+                                    A.Blur(blur_limit=2, p=0.2),
+                                    A.ElasticTransform(p=0.2),
+                                    A.GaussNoise(p=0.2),
+                                    A.HorizontalFlip(p=0.5),
+                                    A.RandomRotate90(p=0.5), #TODO: MIN-MAX INSTEAD OF NORMALIZATION? REMOVE RESIZING WHEN DONE. AVOID RESIZE.
+                                    A.Normalize(mean = 0.0, std=1, always_apply=True),
+                                    ToTensorV2()])
+    valtest_transform = A.Compose([A.Normalize(mean = 0.0, std=1, always_apply=True),
+                                    ToTensorV2()])           #TODO: MIN-MAX INSTEAD OF NORMALIZATION? REMOVE RESIZING WHEN DONE.
 
     if model.n_classes > 1:
         multiclass = True
@@ -207,7 +209,7 @@ def main(args):
                             num_workers=4)
     test_loader = DataLoader(testData,
                              batch_size=args.batchSize,
-                             pin_memory=4)
+                             num_workers=4)
 
     #Start the actual training loop: we log train and validation loss inside
     train_score, val_score = tiss_training_loop(args,
@@ -223,11 +225,10 @@ def main(args):
     test_score = calc_DiceCEloss(args, 
                                 model, 
                                 test_loader, 
-                                device=my_device, 
-                                amp=args.amp)
+                                device=my_device)
     
     #Lets log the test loss at the end of our training
-    experiment.log_metric('test_loss', test_score)
+    #experiment.log_metric('test_loss', test_score)
 
 if __name__ == "__main__":
 
