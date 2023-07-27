@@ -173,7 +173,7 @@ def main(args):
                                     A.Flip(p=0.5),
                                     A.ToGray(p=0.5),          
                                     #A.Equalize(p=0.2),                  #KEEP?
-                                    A.Blur(blur_limit=2, p=0.2),
+                                    #A.Blur(blur_limit=2, p=0.2),
                                     A.ElasticTransform(p=0.2),
                                     A.GaussNoise(p=0.2),
                                     A.HorizontalFlip(p=0.5),
@@ -253,8 +253,8 @@ if __name__ == "__main__":
     parser.add_argument('-amp'               ,type=bool  , action="store", dest='amp'          , default=False           )
     parser.add_argument('-lr'               ,type=float, action="store", dest='learningRate'     , default=1e-4        )
     parser.add_argument('-wd'               ,type=float, action="store", dest='weightDecay'      , default=1e-4        ) #NOTE: 1e-4 default
-    parser.add_argument('-nepoch'           ,type=int  , action="store", dest='epochs'            , default=100          )
-    parser.add_argument('-batchSize'        ,type=int  , action="store", dest='batchSize'        , default=2           )
+    parser.add_argument('-nepoch'           ,type=int  , action="store", dest='epochs'            , default=2000          )
+    parser.add_argument('-batchSize'        ,type=int  , action="store", dest='batchSize'        , default=11           )
     #parser.add_argument('-sourcedataset'    ,type=str  , action="store", dest='sourcedataset'          , default='crag'      )
     #parser.add_argument('-targetdataset'    ,type=str  , action="store", dest='targetdataset'          , default='glas'      )
     #parser.add_argument('-modelType'        ,type=str  , action="store", dest='modelType'        , default='unet'      )

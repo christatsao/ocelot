@@ -10,7 +10,7 @@ sys.path.append(PROJECT_ROOT)
 from util.constants import DATA_PATHS
 from util.dataset import OcelotDatasetLoader, OcelotDatasetLoader2, BinaryPixelThreshold
 from util.unet import Unet
-from util.losses import calc_DiceCELoss
+from util.losses import calc_DiceCEloss
 import argparse
 
 #other modules of interest
@@ -47,7 +47,7 @@ valtest_transform = A.Compose([ #A.Resize(512,512), #NOTE: BE SURE TO RESIZE ACC
 
 #NOTE: datasetroot and scratchDirData ARE SPECIFIC TO ME ONLY. ADJUST PATHS CORRESPONDINGLY.
 datasetroot = "/uufs/chpc.utah.edu/common/home/u6052852/ocelot/data/ocelot2023_v0.1.2"
-scratchDirData = '/scratch/general/nfs1/u6052852/REU/Results/RS0/lr0.009/wd0.0001/Data0'
+scratchDirData = '/scratch/general/nfs1/u6052852/REU/Results/RS0/lr0.01/wd0.0001/Data0'
 
 test  = list(pd.read_csv(os.path.join(scratchDirData,'test.csv'),  header=None).loc[:,0])
 
@@ -67,10 +67,10 @@ test_loader = DataLoader(testData,
                         num_workers=4)
 
 #NOTE: PLEASE USE YOUR OWN DIRECTORY FOR WHERE YOUR TRAINED MODEL IS SAVED
-model.load_state_dict(torch.load('/scratch/general/nfs1/u6052852/REU/Results/RS1/lr0.02/wd0.0001/model.pt'))
+model.load_state_dict(torch.load('/scratch/general/nfs1/u6052852/REU/Results/RS1/lr0.01/wd0.001/model.pt'))
 model.eval()
 
-idx = 20 #NOTE: YOU CAN ADJUST THIS TO WHATEVER YOU WANT WITIHIN RANGE OF DATA TO SHOW
+idx = 11 #NOTE: YOU CAN ADJUST THIS TO WHATEVER YOU WANT WITIHIN RANGE OF DATA TO SHOW
 
 
 if not multiclass:
