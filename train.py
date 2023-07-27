@@ -62,7 +62,7 @@ def tiss_training_loop(args,
             criterion =  DiceCELoss(softmax=True, to_onehot_y=True)
 
         #we use max here as our purpose is to maximize our measured metric (DICE score of 1 is better: more mask similarity)
-        scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=args.epochs)
+        scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=args.epochs/3)
         
         #Only for AMP. prevents loss of values due to switch between multiple formats
         model.to(device)
@@ -91,11 +91,12 @@ def tiss_training_loop(args,
                         loss = criterion(infer_masks, true_masks.float())
                         epoch_loss += torch.sum(loss).detach().cpu().item()
 
-                    optimizer.zero_grad()
-                    loss.backward()
+                        optimizer.zero_grad()#
+                        loss.backward()#
                     
-                    #Step the optimizer for new model parameters (keeping grad scaling in mind assuming AMP)
-                    optimizer.step()
+                        #Step the optimizer for new model parameters (keeping grad scaling in mind assuming AMP)
+                        optimizer.step()#
+
                     progress_bar.update(images.shape[0])
                 
                 #Calculate train loss

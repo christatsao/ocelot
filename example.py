@@ -67,10 +67,10 @@ test_loader = DataLoader(testData,
                         num_workers=4)
 
 #NOTE: PLEASE USE YOUR OWN DIRECTORY FOR WHERE YOUR TRAINED MODEL IS SAVED
-model.load_state_dict(torch.load('/scratch/general/nfs1/u6052852/REU/Results/RS1/lr0.01/wd0.001/model.pt'))
+model.load_state_dict(torch.load('/scratch/general/nfs1/u6052852/REU/Results/RS1/lr0.005/wd0.001/model.pt'))
 model.eval()
 
-idx = 11 #NOTE: YOU CAN ADJUST THIS TO WHATEVER YOU WANT WITIHIN RANGE OF DATA TO SHOW
+idx = 10 #NOTE: YOU CAN ADJUST THIS TO WHATEVER YOU WANT WITIHIN RANGE OF DATA TO SHOW
 
 
 if not multiclass:
@@ -85,17 +85,38 @@ if not multiclass:
     predicted_mask = (prediction>threshold).float()*1
     predicted_mask = predicted_mask.squeeze(0).squeeze(0).numpy()
 
-    plt.imshow(predicted_mask)
-    plt.savefig('test_predicted_mask.png')
-    plt.close()
+    #plt.imshow(predicted_mask)
+    #plt.savefig('test_predicted_mask.png')
+    #plt.close()
 
     image = (image.squeeze(0) * 255).to(torch.uint8)
     PILimage = transforms.ToPILImage()(image)
     PILimage.save('test_image.png')
 
-    plt.imshow(true_mask)
-    plt.savefig('test_true_mask.png')
-    plt.close()
+    #plt.imshow(true_mask)
+    #plt.savefig('test_true_mask.png')
+    #plt.close()
+
+    main = cv2.imread('test_image.png')
+    pred_seg = cv2.imwrite('test_pred_seg.png', predicted_mask)
+    pred_seg = cv2.imread('test_pred_seg.png', cv2.IMREAD_GRAYSCALE)
+    true_seg = cv2.imwrite('test_true_seg.png', true_mask)
+    true_seg = cv2.imread('test_true_seg.png', cv2.IMREAD_GRAYSCALE)
+
+    pred_contours,_ = cv2.findContours(pred_seg,cv2.RETR_TREE,cv2.CHAIN_APPROX_SIMPLE)
+    true_contours,_ = cv2.findContours(true_seg,cv2.RETR_TREE,cv2.CHAIN_APPROX_SIMPLE)
+
+
+    pred_image_with_contours = main.copy()
+    true_image_with_contours = main.copy()
+    cv2.drawContours(pred_image_with_contours, pred_contours, -1, (0, 255, 0), 2)
+    cv2.drawContours(true_image_with_contours, true_contours, -1, (0, 255, 0), 2)
+
+
+    cv2.imwrite('test_pred_overlay.png', pred_image_with_contours)
+    cv2.imwrite('test_true_overlay.png', true_image_with_contours)
+
+
 
 else:
     image = test_loader.dataset[idx][0].unsqueeze(0)
