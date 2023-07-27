@@ -70,7 +70,7 @@ test_loader = DataLoader(testData,
 model.load_state_dict(torch.load('/scratch/general/nfs1/u6052852/REU/Results/RS1/lr0.005/wd0.001/model.pt'))
 model.eval()
 
-idx = 10 #NOTE: YOU CAN ADJUST THIS TO WHATEVER YOU WANT WITIHIN RANGE OF DATA TO SHOW
+idx = 2 #NOTE: YOU CAN ADJUST THIS TO WHATEVER YOU WANT WITIHIN RANGE OF DATA TO SHOW
 
 
 if not multiclass:
@@ -91,17 +91,17 @@ if not multiclass:
 
     image = (image.squeeze(0) * 255).to(torch.uint8)
     PILimage = transforms.ToPILImage()(image)
-    PILimage.save('test_image.png')
+    PILimage.save('./visualizations/test_image.png')
 
     #plt.imshow(true_mask)
     #plt.savefig('test_true_mask.png')
     #plt.close()
 
-    main = cv2.imread('test_image.png')
-    pred_seg = cv2.imwrite('test_pred_seg.png', predicted_mask)
-    pred_seg = cv2.imread('test_pred_seg.png', cv2.IMREAD_GRAYSCALE)
-    true_seg = cv2.imwrite('test_true_seg.png', true_mask)
-    true_seg = cv2.imread('test_true_seg.png', cv2.IMREAD_GRAYSCALE)
+    main = cv2.imread('./visualizations/test_image.png')
+    pred_seg = cv2.imwrite('./visualiaztions/test_pred_seg.png', predicted_mask)
+    pred_seg = cv2.imread('./visualizations/.png', cv2.IMREAD_GRAYSCALE)
+    true_seg = cv2.imwrite('./visualizations/test_true_seg.png', true_mask)
+    true_seg = cv2.imread('./visualizations/test_true_seg.png', cv2.IMREAD_GRAYSCALE)
 
     pred_contours,_ = cv2.findContours(pred_seg,cv2.RETR_TREE,cv2.CHAIN_APPROX_SIMPLE)
     true_contours,_ = cv2.findContours(true_seg,cv2.RETR_TREE,cv2.CHAIN_APPROX_SIMPLE)
@@ -109,12 +109,12 @@ if not multiclass:
 
     pred_image_with_contours = main.copy()
     true_image_with_contours = main.copy()
-    cv2.drawContours(pred_image_with_contours, pred_contours, -1, (0, 255, 0), 2)
-    cv2.drawContours(true_image_with_contours, true_contours, -1, (0, 255, 0), 2)
+    cv2.drawContours(pred_image_with_contours, pred_contours, -1, (0, 0, 0), thickness=5)
+    cv2.drawContours(true_image_with_contours, true_contours, -1, (0, 0, 0), thickness=5)
 
 
-    cv2.imwrite('test_pred_overlay.png', pred_image_with_contours)
-    cv2.imwrite('test_true_overlay.png', true_image_with_contours)
+    cv2.imwrite('./visualizations/test_pred_overlay.png', pred_image_with_contours)
+    cv2.imwrite('./visualizations/test_true_overlay.png', true_image_with_contours)
 
 
 

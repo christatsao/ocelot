@@ -165,7 +165,7 @@ def main(args):
 
     #First we need to specify some info on our model: we have 3 channels RGB, 1 class: tissue
     model = Unet(n_channels=args.inputChannel, n_classes=args.outputChannel)
-    #model.load_state_dict(torch.load('/scratch/general/nfs1/u6052852/REU/Results/RS0/TrainingCheckpoints/lr0.009/wd0.0001/model.pt'))
+    model.load_state_dict(torch.load('/scratch/general/nfs1/u6052852/REU/Results/RS1_Checkpoint/lr0.005/wd0.001/model.pt'))
 
     #The transformations we are applying to the data that we are training or validating/testing on. 
     #Training data undergoes data augmentation for model performance improvements with such limited data.

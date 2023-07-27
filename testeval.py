@@ -13,12 +13,14 @@ pin_memory = True if my_device == 'cuda' else False
 d_type_f32 = torch.float32
 
 datasetroot = "/uufs/chpc.utah.edu/common/home/u6052852/ocelot/data/ocelot2023_v0.1.2"
-scratchDirData = '/scratch/general/nfs1/u6052852/REU/Results/RS0/lr0.009/wd0.0001/Data0'
+scratchDirData = '/scratch/general/nfs1/u6052852/REU/Results/RS1/lr0.005/wd0.001/Data1'
 
 test  = list(pd.read_csv(os.path.join(scratchDirData,'test.csv'),  header=None).loc[:,0])
 
 #First we need to specify some info on our model: we have 3 channels RGB, 1 class: tissue
 model = Unet(n_channels=3, n_classes=1)
+model.load_state_dict(torch.load('/scratch/general/nfs1/u6052852/REU/Results/RS1_Checkpoint/lr0.005/wd0.001/model.pt'))
+
 
 if model.n_classes == 1:
     multiclass = False
@@ -39,4 +41,4 @@ test_loader = DataLoader(testData,
                         batch_size=2,
                         num_workers=4)
 
-print(evaluate(None, model, test_loader, my_device, amp=False, experiment=None))
+print(evaluate(None, model, test_loader, my_device))
