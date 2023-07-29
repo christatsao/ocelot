@@ -47,7 +47,7 @@ valtest_transform = A.Compose([ #A.Resize(512,512), #NOTE: BE SURE TO RESIZE ACC
 
 #NOTE: datasetroot and scratchDirData ARE SPECIFIC TO ME ONLY. ADJUST PATHS CORRESPONDINGLY.
 datasetroot = "/uufs/chpc.utah.edu/common/home/u6052852/ocelot/data/ocelot2023_v0.1.2"
-scratchDirData = '/scratch/general/nfs1/u6052852/REU/Results/RS0/lr0.01/wd0.0001/Data0'
+scratchDirData = '/scratch/general/nfs1/u6052852/REU/Results/RS1/lr0.005/wd0.001/Data1'
 
 test  = list(pd.read_csv(os.path.join(scratchDirData,'test.csv'),  header=None).loc[:,0])
 
@@ -70,7 +70,7 @@ test_loader = DataLoader(testData,
 model.load_state_dict(torch.load('/scratch/general/nfs1/u6052852/REU/Results/RS1/lr0.005/wd0.001/model.pt'))
 model.eval()
 
-idx = 2 #NOTE: YOU CAN ADJUST THIS TO WHATEVER YOU WANT WITIHIN RANGE OF DATA TO SHOW
+idx = 0 #NOTE: YOU CAN ADJUST THIS TO WHATEVER YOU WANT WITIHIN RANGE OF DATA TO SHOW
 
 
 if not multiclass:
@@ -98,8 +98,8 @@ if not multiclass:
     #plt.close()
 
     main = cv2.imread('./visualizations/test_image.png')
-    pred_seg = cv2.imwrite('./visualiaztions/test_pred_seg.png', predicted_mask)
-    pred_seg = cv2.imread('./visualizations/.png', cv2.IMREAD_GRAYSCALE)
+    pred_seg = cv2.imwrite('./visualizations/test_pred_seg.png', predicted_mask)
+    pred_seg = cv2.imread('./visualizations/test_pred_seg.png', cv2.IMREAD_GRAYSCALE)
     true_seg = cv2.imwrite('./visualizations/test_true_seg.png', true_mask)
     true_seg = cv2.imread('./visualizations/test_true_seg.png', cv2.IMREAD_GRAYSCALE)
 

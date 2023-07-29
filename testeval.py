@@ -41,4 +41,4 @@ test_loader = DataLoader(testData,
                         batch_size=2,
                         num_workers=4)
 
-print(evaluate(None, model, test_loader, my_device))
+#iou, cm = evaluate(None, model, test_loader, my_device)

@@ -8,7 +8,7 @@ sys.path.append(PROJECT_ROOT)
 
 #Local packages loaded from src specifying useful constants, and our custom loader
 from util.constants import DATA_PATHS
-from util.dataset import OcelotDatasetLoader, OcelotDatasetLoader2
+from util.dataset import OcelotDatasetLoader2
 from util.unet import Unet
 from util.losses import calc_DiceCEloss
 from util.evaluate import evaluate
@@ -63,7 +63,7 @@ def tiss_training_loop(args,
 
         #we use max here as our purpose is to maximize our measured metric (DICE score of 1 is better: more mask similarity)
         scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=args.epochs/3)
-        
+
         #Only for AMP. prevents loss of values due to switch between multiple formats
         model.to(device)
         val_losses = []
@@ -91,11 +91,11 @@ def tiss_training_loop(args,
                         loss = criterion(infer_masks, true_masks.float())
                         epoch_loss += torch.sum(loss).detach().cpu().item()
 
-                        optimizer.zero_grad()#
-                        loss.backward()#
+                        optimizer.zero_grad()
+                        loss.backward()
                     
                         #Step the optimizer for new model parameters (keeping grad scaling in mind assuming AMP)
-                        optimizer.step()#
+                        optimizer.step()
 
                     progress_bar.update(images.shape[0])
                 
@@ -123,8 +123,8 @@ def tiss_training_loop(args,
                     torch.save(best_trained_model, os.path.join(filepath, 'model.pt'))
 
                 if epoch % 3 == 0:
-                    train_mIOU = evaluate(args, model, train_loader, device)
-                    val_mIOU = evaluate(args, model, val_loader, device)
+                    train_mIOU, train_confusion_matrix = evaluate(args, model, train_loader, device)
+                    val_mIOU, val_confusion_matrix = evaluate(args, model, val_loader, device)
 
                     experiment.log_metric("train_mIOU", train_mIOU, step=epoch)
                     experiment.log_metric("val_mIOU", val_mIOU, step=epoch)
