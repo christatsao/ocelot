@@ -1,6 +1,8 @@
 from util.evaluate import evaluate
 from util.dataset import OcelotDatasetLoader2
 from util.unet import Unet
+from util.resnetunet import UNetWithResnet50Encoder
+import util.resnet as resnet
 from torch.utils.data import DataLoader
 import albumentations as A
 from albumentations.pytorch import ToTensorV2
@@ -18,16 +20,15 @@ scratchDirData = '/scratch/general/nfs1/u6052852/REU/Results/RS1/lr0.005/wd0.001
 test  = list(pd.read_csv(os.path.join(scratchDirData,'test.csv'),  header=None).loc[:,0])
 
 #First we need to specify some info on our model: we have 3 channels RGB, 1 class: tissue
-model = Unet(n_channels=3, n_classes=1)
-model.load_state_dict(torch.load('/scratch/general/nfs1/u6052852/REU/Results/RS1_Checkpoint/lr0.005/wd0.001/model.pt'))
+#model = resnet.resnet50(pretrained=True, progress=False)
 
+model = UNetWithResnet50Encoder(n_classes=2).to(my_device)
+#model.load_state_dict(torch.load('/scratch/general/nfs1/u6052852/REU/Results/RS1_Checkpoint/lr0.005/wd0.001/model.pt'))
 
-if model.n_classes == 1:
-    multiclass = False
-else:
-    multiclass =True
+multiclass = False
 
-valtest_transform = A.Compose([ A.Normalize(mean = 0.0, std=1, always_apply=True),
+valtest_transform = A.Compose([ #A.Resize(224,224),
+                                A.Normalize(mean = 0.0, std=1, always_apply=True),
                                 ToTensorV2(),
                                 ])
 
@@ -42,3 +43,8 @@ test_loader = DataLoader(testData,
                         num_workers=4)
 
 #iou, cm = evaluate(None, model, test_loader, my_device)
+img = test_loader.dataset[0][0].unsqueeze(0)
+
+model.eval()
+pred = model(img.to(my_device))
+print(pred)

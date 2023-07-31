@@ -9,7 +9,7 @@
 #SBATCH --gres=gpu:a100:1
 #SBATCH --mem=12GB
 
-/uufs/chpc.utah.edu/common/home/u6052852/anaconda3/envs/myenv/bin/python train.py -resample 1 -lr 0.005 -wd 0.001
+/uufs/chpc.utah.edu/common/home/u6052852/anaconda3/envs/myenv/bin/python train2.py -resample 1 -lr 0.008 -wd 0.001
 
 
 

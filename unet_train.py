@@ -12,6 +12,7 @@ from util.dataset import OcelotDatasetLoader2
 from util.unet import Unet
 from util.losses import calc_DiceCEloss
 from util.evaluate import evaluate
+from util.evaluate import binary_format, multiclass_format
 
 import argparse
 
@@ -57,12 +58,12 @@ def tiss_training_loop(args,
         
         #criterion = DiceCELoss(sigmoid=True)
         if model.n_classes == 1:
-            criterion = DiceCELoss(sigmoid=True)
+            criterion = DiceCELoss(sigmoid=True, include_background=False).to(device)
         else:
-            criterion =  DiceCELoss(softmax=True, to_onehot_y=True)
+            criterion = DiceCELoss(softmax=True, include_background=False, to_onehot_y=True).to(device)
 
         #we use max here as our purpose is to maximize our measured metric (DICE score of 1 is better: more mask similarity)
-        scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=args.epochs/3)
+        scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=args.epochs)
 
         #Only for AMP. prevents loss of values due to switch between multiple formats
         model.to(device)
@@ -87,7 +88,10 @@ def tiss_training_loop(args,
 
                     with torch.autocast(device.type if device.type == 'cuda' else 'cpu', enabled=args.amp):
                         
-                        infer_masks = model(images) 
+                        #Pass our images into the model and make inference about what our mask might look like
+                        infer_masks = model(images)
+
+                        #determine how bad our loss is and do some calcs
                         loss = criterion(infer_masks, true_masks.float())
                         epoch_loss += torch.sum(loss).detach().cpu().item()
 
@@ -165,7 +169,7 @@ def main(args):
 
     #First we need to specify some info on our model: we have 3 channels RGB, 1 class: tissue
     model = Unet(n_channels=args.inputChannel, n_classes=args.outputChannel)
-    model.load_state_dict(torch.load('/scratch/general/nfs1/u6052852/REU/Results/RS1_Checkpoint/lr0.005/wd0.001/model.pt'))
+    #model.load_state_dict(torch.load('/scratch/general/nfs1/u6052852/REU/Results/RS1_Checkpoint/lr0.005/wd0.001/model.pt'))
 
     #The transformations we are applying to the data that we are training or validating/testing on. 
     #Training data undergoes data augmentation for model performance improvements with such limited data.

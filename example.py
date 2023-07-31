@@ -32,13 +32,15 @@ import pandas as pd
 from sklearn.model_selection import train_test_split
 from albumentations.augmentations.transforms import Normalize, PixelDropout
 from torchvision import transforms
+from util.resnetunet import UNetWithResnet50Encoder
 
 my_device = torch.device(device = 'cuda' if torch.cuda.is_available() else 'cpu')
 pin_memory = True if my_device == 'cuda' else False
 d_type_f32 = torch.float32
 
 #First we need to specify some info on our model: we have 3 channels RGB, 1 class: tissue
-model = Unet(n_channels=3, n_classes=1)
+model = UNetWithResnet50Encoder(n_classes=1)
+#model = Unet(n_channels=3, n_classes=1)
 
 valtest_transform = A.Compose([ #A.Resize(512,512), #NOTE: BE SURE TO RESIZE ACCORDINGLY + ADD TRANSFORMS BASED ON HOW YOU TRAINED MODEL
                                 A.Normalize(mean = 0.0, std=1, always_apply=True),
@@ -67,10 +69,10 @@ test_loader = DataLoader(testData,
                         num_workers=4)
 
 #NOTE: PLEASE USE YOUR OWN DIRECTORY FOR WHERE YOUR TRAINED MODEL IS SAVED
-model.load_state_dict(torch.load('/scratch/general/nfs1/u6052852/REU/Results/RS1/lr0.005/wd0.001/model.pt'))
+model.load_state_dict(torch.load('/scratch/general/nfs1/u6052852/REU/Results/RS1/lr0.008/wd0.001/model.pt'))
 model.eval()
 
-idx = 0 #NOTE: YOU CAN ADJUST THIS TO WHATEVER YOU WANT WITIHIN RANGE OF DATA TO SHOW
+idx = 7 #NOTE: YOU CAN ADJUST THIS TO WHATEVER YOU WANT WITIHIN RANGE OF DATA TO SHOW
 
 
 if not multiclass:
@@ -115,9 +117,3 @@ if not multiclass:
 
     cv2.imwrite('./visualizations/test_pred_overlay.png', pred_image_with_contours)
     cv2.imwrite('./visualizations/test_true_overlay.png', true_image_with_contours)
-
-
-
-else:
-    image = test_loader.dataset[idx][0].unsqueeze(0)
-    image = image.float()
