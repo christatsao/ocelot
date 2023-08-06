@@ -12,7 +12,7 @@ def calc_DiceCEloss(args, model, dataloader, device):
     n_samples = len(dataloader.dataset)
     n_batches = n_samples / dataloader.batch_size
     
-    if model.n_classes == 1:
+    if model.outputChannel == 1:
         loss_metric = DiceCELoss(sigmoid=True)
     else:
         loss_metric = DiceCELoss(softmax=True, to_onehot_y=True)
@@ -20,7 +20,7 @@ def calc_DiceCEloss(args, model, dataloader, device):
     #No need to waste memory resources for gradients if we are not using backpropagation
     with torch.autocast(device.type if device.type == 'cuda' else 'cpu', enabled=args.amp):
         
-        for batch in tqdm(dataloader, total=n_samples, desc='Validation round', unit='batch', leave=False):
+        for batch in tqdm(dataloader, total=n_batches, desc='Validation round', unit='batch', leave=False):
             images, true_masks = batch[0], batch[1]
             images = images.to(device=device, dtype=torch.float32, memory_format=torch.channels_last if args.amp==True else torch.preserve_format)
             true_masks = true_masks.to(device=device, dtype=torch.float32).unsqueeze(1)
@@ -35,5 +35,5 @@ def calc_DiceCEloss(args, model, dataloader, device):
     model.train()
     
     #We divide by model.n_channels based on whether we are performing multiclass or binary
-    avg_metric = (metric_sum/n_batches)/model.n_classes
+    avg_metric = (metric_sum/n_batches)/model.outputChannel
     return avg_metric

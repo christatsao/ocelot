@@ -72,7 +72,7 @@ test_loader = DataLoader(testData,
 model.load_state_dict(torch.load('/scratch/general/nfs1/u6052852/REU/Results/RS1/lr0.008/wd0.001/model.pt'))
 model.eval()
 
-idx = 7 #NOTE: YOU CAN ADJUST THIS TO WHATEVER YOU WANT WITIHIN RANGE OF DATA TO SHOW
+idx = 9 #NOTE: YOU CAN ADJUST THIS TO WHATEVER YOU WANT WITIHIN RANGE OF DATA TO SHOW
 
 
 if not multiclass:
@@ -87,17 +87,11 @@ if not multiclass:
     predicted_mask = (prediction>threshold).float()*1
     predicted_mask = predicted_mask.squeeze(0).squeeze(0).numpy()
 
-    #plt.imshow(predicted_mask)
-    #plt.savefig('test_predicted_mask.png')
-    #plt.close()
 
     image = (image.squeeze(0) * 255).to(torch.uint8)
     PILimage = transforms.ToPILImage()(image)
     PILimage.save('./visualizations/test_image.png')
 
-    #plt.imshow(true_mask)
-    #plt.savefig('test_true_mask.png')
-    #plt.close()
 
     main = cv2.imread('./visualizations/test_image.png')
     pred_seg = cv2.imwrite('./visualizations/test_pred_seg.png', predicted_mask)

@@ -1,139 +1,112 @@
 import sys, os
 
-#Our project root directory
+#Our project root directory. Some imports depend on this
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname("__file__"), os.pardir))
 sys.path.append(PROJECT_ROOT)
 
 import torch
 import torch.nn as nn
-import torchvision
 import util.resnet as rn
+import torch.nn.functional as F
+from util.constants import RESNET_50_WEIGHTS
 
-class ConvBlock(nn.Module):
-    """
-    https://github.com/rawmarshmellows/pytorch-unet-resnet-50-encoder/blob/master/u_net_resnet_50_encoder.py#L106 
-    Helper module that consists of a Conv -> BN -> ReLU
-    """
+class ResNetUnet(nn.Module):
+    def __init__(self, args):
+        super(ResNetUnet, self).__init__()
+        self.inputChannel = args.inputChannel
+        self.outputChannel = args.outputChannel
+        self.ConvLayer1, \
+        self.ConvLayer2, \
+        self.ConvLayer3, \
+        self.ConvLayer4, \
+        self.ConvLayer5 = rn.resnet50(RESNET_50_WEIGHTS, pretrained=args.pretrained)    
 
-    def __init__(self, in_channels, out_channels, padding=1, kernel_size=3, stride=1, with_nonlinearity=True):
+        if args.freezebackbone:
+            self.__freeze_backbone__()
+
+        self.ConvLayer6 = nn.Conv2d(in_channels=2048, out_channels=1024, kernel_size=1) 
+        self.ConvLayer7 = DoubleConv(in_channels=2048, out_channels=512)
+        self.ConvLayer8 = DoubleConv(in_channels=1024, out_channels=256)
+        self.ConvLayer9 = DoubleConv(in_channels=512,  out_channels=128)
+        self.ConvLayer10 = DoubleConv(in_channels=256,  out_channels=128) #64
+
+        self.ConvTranspose1 = TransposedConvolutionBlock(in_channels=1024, out_channels=1024)
+        self.ConvTranspose2 = TransposedConvolutionBlock(in_channels=512, out_channels=512)
+        self.ConvTranspose3 = TransposedConvolutionBlock(in_channels=256, out_channels=256)
+        self.ConvTranspose4 = TransposedConvolutionBlock(in_channels=128, out_channels=128)
+
+        self.ConvTransposex = TransposedConvolutionBlock(in_channels=64, out_channels=128)
+
+        self.ConvTranspose5 = TransposedConvolutionBlock(in_channels=128, out_channels=64)
+
+        self.outConv = nn.Conv2d(in_channels=64, out_channels=args.outputChannel, kernel_size=1)
+
+    def __freeze_backbone__(self):
+        for parameter_en1, parameter_en2, parameter_en3, parameter_en4, parameter_en5 in zip(self.ConvLayer1.parameters(),
+                                                                                             self.ConvLayer2.parameters(),
+                                                                                             self.ConvLayer3.parameters(),
+                                                                                             self.ConvLayer4.parameters(),
+                                                                                             self.ConvLayer5.parameters()):
+            parameter_en1.requires_grad = False
+            parameter_en2.requires_grad = False
+            parameter_en3.requires_grad = False
+            parameter_en4.requires_grad = False
+            parameter_en5.requires_grad = False
+
+    def forward(self, out0):
+        out1 = self.ConvLayer1(out0) #64   x 256 x 256
+        out2 = self.ConvLayer2(out1) #256  x 256 x 256
+        out3 = self.ConvLayer3(out2) #512  x 128 x 128
+        out4 = self.ConvLayer4(out3) #1024 x 64  x 64
+        out5 = self.ConvLayer5(out4) #2048 x 32  x 32 
+        
+        out_to_transpose = self.ConvLayer6(out5) #1024 x 32 x 32
+        out_transpose1 = self.ConvTranspose1(out_to_transpose) #1024 x 64 x 64
+
+        concat1 = torch.cat((out_transpose1, out4), dim=1) #2048 x 64 x 64
+        out_transpose2 = self.ConvTranspose2(self.ConvLayer7(concat1)) #512 x 128 x 128
+
+        concat2 = torch.cat((out_transpose2, out3), dim=1) #1024 x 128 x 128
+        out_transpose3 = self.ConvTranspose3(self.ConvLayer8(concat2)) #256 x 256 x 256
+
+        concat3 = torch.cat((out_transpose3, out2), dim=1) #512 x 256 x 256
+        out_transpose4 = self.ConvTranspose4(self.ConvLayer9(concat3)) #128 x 512 x 512
+
+        out1 = self.ConvTransposex(out1) #upsample to 128 x 512 x 512
+
+        concat4 = torch.cat((out_transpose4, out1), dim=1) #256 x 512 x 512
+        out_transpose5 = self.ConvTranspose5(self.ConvLayer10(concat4)) #64 x 1024 x 1024
+
+        output = self.outConv(out_transpose5) #1 x 1024 x 1024
+
+        return output
+
+
+class DoubleConv(nn.Module):
+    '''conv -> [BN] -> ReLU'''
+    def __init__(self, in_channels, out_channels, mid_channels = None):
         super().__init__()
-        self.conv = nn.Conv2d(in_channels, out_channels, padding=padding, kernel_size=kernel_size, stride=stride)
-        self.bn = nn.BatchNorm2d(out_channels)
-        self.relu = nn.ReLU()
-        self.with_nonlinearity = with_nonlinearity
-
-    def forward(self, x):
-        x = self.conv(x)
-        x = self.bn(x)
-        if self.with_nonlinearity:
-            x = self.relu(x)
-        return x
-
-
-class Bridge(nn.Module):
-    """
-    This is the middle layer of the UNet which just consists of some
-    """
-
-    def __init__(self, in_channels, out_channels):
-        super().__init__()
-        self.bridge = nn.Sequential(
-            ConvBlock(in_channels, out_channels),
-            ConvBlock(out_channels, out_channels)
+        if not mid_channels:
+            mid_channels = out_channels
+        self.double_conv = nn.Sequential(
+            nn.Conv2d(in_channels, mid_channels, kernel_size=3, padding=1, bias=False),
+            nn.BatchNorm2d(mid_channels),
+            nn.ReLU(inplace = True),
+            nn.Conv2d(mid_channels, out_channels, kernel_size=3, padding=1, bias=False),
+            nn.BatchNorm2d(out_channels),
+            nn.ReLU(inplace = True)
         )
 
     def forward(self, x):
-        return self.bridge(x)
+        return self.double_conv(x)
 
 
-class UpBlockForUNetWithResNet50(nn.Module):
-    """
-    Up block that encapsulates one up-sampling step which consists of Upsample -> ConvBlock -> ConvBlock
-    """
+class TransposedConvolutionBlock(nn.Module):
+    def __init__(self, in_channels, out_channels, kernel_size=3, stride=2, padding=1, output_padding=1):
+        super(TransposedConvolutionBlock, self).__init__()
+        self.conv_transpose = nn.ConvTranspose2d(in_channels, out_channels, kernel_size=kernel_size,
+                                                 stride=stride, padding=padding, output_padding=output_padding)
 
-    def __init__(self, in_channels, out_channels, up_conv_in_channels=None, up_conv_out_channels=None,
-                 upsampling_method="conv_transpose"):
-        super().__init__()
-
-        if up_conv_in_channels == None:
-            up_conv_in_channels = in_channels
-        if up_conv_out_channels == None:
-            up_conv_out_channels = out_channels
-
-        if upsampling_method == "conv_transpose":
-            self.upsample = nn.ConvTranspose2d(up_conv_in_channels, up_conv_out_channels, kernel_size=2, stride=2)
-        elif upsampling_method == "bilinear":
-            self.upsample = nn.Sequential(
-                nn.Upsample(mode='bilinear', scale_factor=2),
-                nn.Conv2d(in_channels, out_channels, kernel_size=1, stride=1)
-            )
-        self.conv_block_1 = ConvBlock(in_channels, out_channels)
-        self.conv_block_2 = ConvBlock(out_channels, out_channels)
-
-    def forward(self, up_x, down_x):
-        """
-
-        :param up_x: this is the output from the previous up block
-        :param down_x: this is the output from the down block
-        :return: upsampled feature map
-        """
-        x = self.upsample(up_x)
-        x = torch.cat([x, down_x], 1)
-        x = self.conv_block_1(x)
-        x = self.conv_block_2(x)
+    def forward(self, x):
+        x = self.conv_transpose(x)
         return x
-
-
-class UNetWithResnet50Encoder(nn.Module):
-    DEPTH = 6
-
-    def __init__(self, n_classes=2):
-        super().__init__()
-        self.n_classes = n_classes
-        resnet = rn.resnet50(pretrained=True)
-        down_blocks = []
-        up_blocks = []
-        self.input_block = nn.Sequential(*list(resnet.children()))[:3]
-        self.input_pool = list(resnet.children())[3]
-        for bottleneck in list(resnet.children()):
-            if isinstance(bottleneck, nn.Sequential):
-                down_blocks.append(bottleneck)
-        self.down_blocks = nn.ModuleList(down_blocks)
-        self.bridge = Bridge(2048, 2048)
-        up_blocks.append(UpBlockForUNetWithResNet50(2048, 1024))
-        up_blocks.append(UpBlockForUNetWithResNet50(1024, 512))
-        up_blocks.append(UpBlockForUNetWithResNet50(512, 256))
-        up_blocks.append(UpBlockForUNetWithResNet50(in_channels=128 + 64, out_channels=128,
-                                                    up_conv_in_channels=256, up_conv_out_channels=128))
-        up_blocks.append(UpBlockForUNetWithResNet50(in_channels=64 + 3, out_channels=64,
-                                                    up_conv_in_channels=128, up_conv_out_channels=64))
-
-        self.up_blocks = nn.ModuleList(up_blocks)
-
-        self.out = nn.Conv2d(64, n_classes, kernel_size=1, stride=1)
-
-    def forward(self, x, with_output_feature_map=False):
-        pre_pools = dict()
-        pre_pools[f"layer_0"] = x
-        x = self.input_block(x)
-        pre_pools[f"layer_1"] = x
-        x = self.input_pool(x)
-
-        for i, block in enumerate(self.down_blocks, 2):
-            x = block(x)
-            if i == (UNetWithResnet50Encoder.DEPTH - 1):
-                continue
-            pre_pools[f"layer_{i}"] = x
-
-        x = self.bridge(x)
-
-        for i, block in enumerate(self.up_blocks, 1):
-            key = f"layer_{UNetWithResnet50Encoder.DEPTH - 1 - i}"
-            x = block(x, pre_pools[key])
-        output_feature_map = x
-        x = self.out(x)
-        del pre_pools
-        if with_output_feature_map:
-            return x, output_feature_map
-        else:
-            return x

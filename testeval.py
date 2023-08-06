@@ -1,7 +1,7 @@
 from util.evaluate import evaluate
 from util.dataset import OcelotDatasetLoader2
 from util.unet import Unet
-from util.resnetunet import UNetWithResnet50Encoder
+from util.resnetunet import ResNetUnet
 import util.resnet as resnet
 from torch.utils.data import DataLoader
 import albumentations as A
@@ -9,6 +9,15 @@ from albumentations.pytorch import ToTensorV2
 import torch
 import os
 import pandas as pd
+
+class Args():
+    def __init__(self):
+        self.inputChannel = 3
+        self.outputChannel = 1
+        self.freezebackbone = True
+        self.pretrained = True
+
+args = Args()
 
 my_device = torch.device(device = 'cuda' if torch.cuda.is_available() else 'cpu')
 pin_memory = True if my_device == 'cuda' else False
@@ -22,7 +31,7 @@ test  = list(pd.read_csv(os.path.join(scratchDirData,'test.csv'),  header=None).
 #First we need to specify some info on our model: we have 3 channels RGB, 1 class: tissue
 #model = resnet.resnet50(pretrained=True, progress=False)
 
-model = UNetWithResnet50Encoder(n_classes=2).to(my_device)
+model = ResNetUnet(args).to(my_device)
 #model.load_state_dict(torch.load('/scratch/general/nfs1/u6052852/REU/Results/RS1_Checkpoint/lr0.005/wd0.001/model.pt'))
 
 multiclass = False
@@ -47,4 +56,5 @@ img = test_loader.dataset[0][0].unsqueeze(0)
 
 model.eval()
 pred = model(img.to(my_device))
-print(pred)
+
+print(pred.shape)

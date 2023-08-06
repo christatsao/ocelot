@@ -15,8 +15,8 @@ def evaluate(args, model, dataloader, device):
     n_batches = n_samples / dataloader.batch_size
     
     #Lets try out mIoU and Confusion matrix as two metrics
-    metric1 = JaccardIndex(task='multiclass', num_classes=model.n_classes+1).to(device)
-    metric2 = ConfusionMatrix(task='multiclass', num_classes=model.n_classes+1).to(device)
+    metric1 = JaccardIndex(task='multiclass', num_classes=model.outputChannel+1).to(device)
+    metric2 = ConfusionMatrix(task='multiclass', num_classes=model.outputChannel+1).to(device)
     
     with torch.autocast(device.type if device.type == 'cuda' else 'cpu', enabled=args.amp):
         for batch in tqdm(dataloader, total=n_batches, desc='Evaluation round', unit='batch', leave=False):
@@ -31,11 +31,11 @@ def evaluate(args, model, dataloader, device):
             masks = pred_masks, true_masks
             
             #some formatting of our predictions as probabilities and ground truths to proper formatting with one_hot
-            if model.n_classes == 1:
+            if model.outputChannel == 1:
                 pred_masks, true_masks = binary_format(masks)
             
             else:
-                pred_masks, true_masks = multiclass_format(masks, num_classes=model.n_classes+1)
+                pred_masks, true_masks = multiclass_format(masks, num_classes=model.outputChannel+1)
 
             metric1.update(pred_masks, true_masks)
             metric2.update(pred_masks, true_masks)

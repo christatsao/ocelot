@@ -188,7 +188,7 @@ def main(args):
     valtest_transform = A.Compose([A.Normalize(mean = 0.0, std=1, always_apply=True),
                                     ToTensorV2()])           #TODO: MIN-MAX INSTEAD OF NORMALIZATION? REMOVE RESIZING WHEN DONE.
 
-    if model.n_classes > 1:
+    if model.outputChannel > 1:
         multiclass = True
     else:
         multiclass = False
